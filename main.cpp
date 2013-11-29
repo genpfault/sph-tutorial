@@ -4,13 +4,13 @@
 //
 // g++ tutorial_3.cpp -lglut -O3 -fopenmp -o tutorial_3
 
+#include <GL/glut.h>
+#include <omp.h>
 
 #include <iostream>
 #include <vector>
 #include <cstdlib>
 #include <cmath>
-#include <GL/glut.h>
-#include <omp.h>
 using namespace std;
 
 // --------------------------------------------------------------------
@@ -37,15 +37,20 @@ Vec2 operator*(float b, const Vec2& a) { return Vec2(a.x * b, a.y * b); }
 // --------------------------------------------------------------------
 // A structure for holding two neighboring particles and their weighted distances
 struct neighbor
-{ 
-    int i, j; 
-    float q, q2; 
+{
+    int i, j;
+    float q, q2;
 };
 
 // The particle structure holding all of the relevant information.
-struct particle 
+struct particle
 {
-    Vec2 pos, pos_old, vel, force;
+    Vec2 pos;
+    float r, g, b;
+
+    Vec2 pos_old;
+    Vec2 vel;
+    Vec2 force;
     float mass, rho, rho_near, press, press_near, sigma, beta;
     vector<neighbor> neighbors;
 };
@@ -75,13 +80,13 @@ bool attracting = false;
 
 // Between [0,1]
 float rand01()
-{ 
-    return (float)rand() * (1.f / RAND_MAX); 
+{
+    return (float)rand() * (1.f / RAND_MAX);
 }
 
 // Between [a,b]
 float randab(float a, float b)
-{ 
+{
     return a + (b-a)*rand01();
 }
 
@@ -277,6 +282,14 @@ void step()
 #pragma omp parallel for
     for(int i=0; i < (int)particles.size(); ++i)
     {
+        // We'll let the color be determined by
+        // ... x-velocity for the red component
+        // ... y-velocity for the green-component
+        // ... pressure for the blue component
+        particles[i].r = 0.3f + (20 * fabs(particles[i].vel.x) );
+        particles[i].g = 0.3f + (20 * fabs(particles[i].vel.y) );
+        particles[i].b = 0.3f + (0.1f * particles[i].rho );
+
         // For each of that particles neighbors
         for(int ni=0; ni < (int)particles[i].neighbors.size(); ++ni)
         {
@@ -320,22 +333,13 @@ void render()
 
     // Draw Fluid Particles
     glPointSize(r*2);
-    glBegin(GL_POINTS);
-    for(int i=0; i < (int)particles.size(); ++i)
-    {
-        // We'll let the color be determined by
-        // ... pressure for the blue component
-        // ... x-velocity for the red component
-        // ... y-velocity for the green-component
-        float c = 0.1f * particles[i].rho;
-        float x = 20 * fabs(particles[i].vel.x);
-        float y = 20 * fabs(particles[i].vel.y);
-
-        glColor3f( 0.3f + x, 0.3f + y, 0.3f + c );
-        //      glColor3f(.5,.3,.7);
-        glVertex2f(particles[i].pos.x, particles[i].pos.y);
-    }
-    glEnd();
+    glVertexPointer( 2, GL_FLOAT, sizeof(particle), &particles[0].pos );
+    glColorPointer( 3, GL_FLOAT, sizeof(particle), &particles[0].r );
+    glEnableClientState( GL_VERTEX_ARRAY );
+    glEnableClientState( GL_COLOR_ARRAY );
+    glDrawArrays( GL_POINTS, 0, particles.size() );
+    glDisableClientState( GL_VERTEX_ARRAY );
+    glDisableClientState( GL_COLOR_ARRAY );
 
     glutSwapBuffers();
 }
@@ -396,7 +400,7 @@ void motion(int x, int y)
 // --------------------------------------------------------------------
 void mouse(int button, int state, int x, int y)
 {
-    if(state == GLUT_DOWN) 
+    if(state == GLUT_DOWN)
     {
         attracting = true;
     }
@@ -425,5 +429,3 @@ int main(int argc, char **argv)
 
     glutMainLoop();
 }
-
-
