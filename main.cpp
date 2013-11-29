@@ -34,13 +34,17 @@ struct particle
     vec2 pos_old;
     vec2 vel;
     vec2 force;
-    float mass, rho, rho_near, press, press_near, sigma, beta;
+    float mass;
+    float rho;
+    float rho_near;
+    float press;
+    float press_near;
+    float sigma;
+    float beta;
     vector<neighbor> neighbors;
 };
 
 // --------------------------------------------------------------------
-unsigned int N = 1024;          // Number of Particles in the simulation
-
 float G = .02f * .25;           // Gravitational Constant for our simulation
 
 float spacing = 2.f;            // Spacing of particles
@@ -75,7 +79,7 @@ float randab(float a, float b)
 
 
 // --------------------------------------------------------------------
-void init()
+void init( const unsigned int N )
 {
     // Initialize particles
     // We will make a block of particles with a total width of 1/4 of the screen.
@@ -84,7 +88,10 @@ void init()
     {
         for(float x=-w; x <= w; x+=r*.5f)
         {
-            if(particles.size() > N) break;
+            if(particles.size() > N)
+            {
+                break;
+            }
 
             particle p;
             p.pos = vec2(x, y);
@@ -136,7 +143,7 @@ void step()
         if(particles[i].pos.x < -SIM_W) particles[i].force.x -= (particles[i].pos.x - -SIM_W) / 8;
         if(particles[i].pos.x >  SIM_W) particles[i].force.x -= (particles[i].pos.x - SIM_W) / 8;
         if(particles[i].pos.y < bottom) particles[i].force.y -= (particles[i].pos.y - bottom) / 8;
-        if(particles[i].pos.y > SIM_W*2)particles[i].force.y -= (particles[i].pos.y - SIM_W*2) / 8;
+        //if(particles[i].pos.y > SIM_W*2)particles[i].force.y -= (particles[i].pos.y - SIM_W*2) / 8;
 
         // Handle the mouse attractor.
         // It's a simple spring based attraction to where the mouse is.
@@ -403,7 +410,7 @@ void mouse(int button, int state, int x, int y)
 // --------------------------------------------------------------------
 int main(int argc, char **argv)
 {
-    init();
+    init( 1024 );
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE);
