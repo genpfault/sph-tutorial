@@ -28,7 +28,7 @@ using namespace glm;
 // A structure for holding two neighboring particles and their weighted distances
 struct neighbor
 {
-    int i, j;
+    int j;
     float q, q2;
 };
 
@@ -179,10 +179,12 @@ void step()
 #pragma omp parallel for
     for(int i=0; i < (int)particles.size(); ++i)
     {
-        particles[i].rho = particles[i].rho_near = 0;
+        particles[i].rho = 0;
+        particles[i].rho_near = 0;
 
         // We will sum up the 'near' and 'far' densities.
-        float d=0, dn=0;
+        float d=0;
+        float dn=0;
 
         // Now look at every other particle
         for(int j=0; j < (int)particles.size(); ++j)
@@ -217,8 +219,9 @@ void step()
 
                 // Set up the neighbor list for faster access later.
                 neighbor n;
-                n.i = i; n.j = j;
-                n.q = q; n.q2 = q2;
+                n.j = j;
+                n.q = q; 
+                n.q2 = q2;
                 particles[i].neighbors.push_back(n);
             }
         }
@@ -246,28 +249,24 @@ void step()
 #pragma omp parallel for
     for(int i=0; i < (int)particles.size(); ++i)
     {
-        vec2 dX = vec2();
-
         // For each of the neighbors
-        int ncount = particles[i].neighbors.size();
-        for(int ni=0; ni < ncount; ++ni)
+        vec2 dX;
+        for(int ni=0; ni < (int)particles[i].neighbors.size(); ++ni)
         {
-            neighbor n = particles[i].neighbors[ni];
-            int j = n.j;
-            float q(n.q);
-            float q2(n.q2);
+            const neighbor& n = particles[i].neighbors[ni];
 
             // The vector from particle i to particle j
-            vec2 rij = particles[j].pos - particles[i].pos;
+            vec2 rij = particles[n.j].pos - particles[i].pos;
 
             // calculate the force from the pressures calculated above
-            float dm = (particles[i].press + particles[j].press) * q +
-                (particles[i].press_near + particles[j].press_near) * q2;
+            float dm = 
+                n.q * (particles[i].press + particles[n.j].press) +
+                n.q2 * (particles[i].press_near + particles[n.j].press_near);
 
             // Get the direction of the force
             vec2 D = glm::normalize( rij ) * dm;
             dX += D;
-            particles[j].force += D;
+            particles[n.j].force += D;
         }
 
         particles[i].force -= dX;
@@ -295,7 +294,7 @@ void step()
         // For each of that particles neighbors
         for(int ni=0; ni < (int)particles[i].neighbors.size(); ++ni)
         {
-            neighbor n = particles[i].neighbors[ni];
+            const neighbor& n = particles[i].neighbors[ni];
 
             vec2 rij = particles[n.j].pos - particles[i].pos;
             float l = glm::length( rij );
@@ -303,7 +302,7 @@ void step()
 
             vec2 rijn = (rij / l);
             // Get the projection of the velocities onto the vector between them.
-            float u = glm::dot( particles[n.i].vel - particles[n.j].vel, rijn );
+            float u = glm::dot( particles[i].vel - particles[n.j].vel, rijn );
             if(u > 0)
             {
                 // Calculate the viscosity impulse between the two particles
@@ -311,7 +310,7 @@ void step()
                 vec2 I = (1 - q) * (particles[n.j].sigma * u + particles[n.j].beta * u*u) * rijn;
 
                 // Apply the impulses on the two particles
-                particles[n.i].vel -= I * 0.5f;
+                particles[i].vel -= I * 0.5f;
                 particles[n.j].vel += I * 0.5f;
             }
         }
@@ -418,7 +417,7 @@ void mouse(int button, int state, int x, int y)
 // --------------------------------------------------------------------
 int main( int argc, char** argv )
 {
-#if 0
+#if 1
     ofstream file( "benchmark.txt" );
     typedef iostreams::tee_device< std::ostream, std::ofstream > Tee;
     typedef iostreams::stream< Tee > TeeStream;
