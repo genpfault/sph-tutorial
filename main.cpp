@@ -97,8 +97,8 @@ void init( const unsigned int N )
             p.pos = vec2(x, y);
             p.pos_old = p.pos + 0.001f * vec2(rand01(), rand01());
             p.force = vec2(0,0);
-            p.sigma = .1f;
-            p.beta = 0.f;
+            p.sigma = 3.f;
+            p.beta = 4.f;
             particles.push_back(p);
         }
     }
@@ -116,10 +116,6 @@ void step()
 #pragma omp parallel for
     for(int i=0; i < (int)particles.size(); ++i)
     {
-        // Normal verlet stuff
-        particles[i].pos_old = particles[i].pos;
-        particles[i].pos += particles[i].vel;
-
         // Apply the currently accumulated forces
         particles[i].pos += particles[i].force;
 
@@ -137,6 +133,10 @@ void step()
         // If the velocity is greater than the max velocity, then cut it in half.
         if(vel_mag > max_vel*max_vel)
             particles[i].vel = particles[i].vel * .5f;
+
+        // Normal verlet stuff
+        particles[i].pos_old = particles[i].pos;
+        particles[i].pos += particles[i].vel;
 
         // If the particle is outside the bounds of the world, then
         // Make a little spring force to push it back in.
@@ -312,7 +312,7 @@ void step()
 }
 
 // --------------------------------------------------------------------
-void render()
+void display()
 {
     glClearColor( 0, 0, 0, 1 );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
@@ -338,6 +338,7 @@ void render()
     glutSwapBuffers();
 }
 
+// --------------------------------------------------------------------
 void idle()
 {
     step();
@@ -368,7 +369,7 @@ void keyboard(unsigned char c, int x, int y)
                 particle p;
                 p.pos = p.pos_old = vec2(x , y) + vec2(rand01(), rand01());
                 p.force = vec2(0,0);
-                p.sigma  = 3.f;
+                p.sigma = 3.f;
                 p.beta = 4.f;
 
                 if( glm::length2( p.pos - vec2( 0, SIM_W*2 ) ) < radius*radius )
@@ -410,14 +411,14 @@ void mouse(int button, int state, int x, int y)
 // --------------------------------------------------------------------
 int main(int argc, char **argv)
 {
-    init( 1024 );
+    init( 2048 );
 
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE);
     glutInitWindowSize(512, 512);
     glutCreateWindow("SPH");
 
-    glutDisplayFunc(render);
+    glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
     glutIdleFunc(idle);
     glutMotionFunc(motion);
