@@ -40,9 +40,10 @@ float randab(float a, float b)
 
 // --------------------------------------------------------------------
 // A structure for holding two neighboring particles and their weighted distances
+struct Particle;
 struct Neighbor
 {
-    int j;
+    Particle* j;
     float q, q2;
 };
 
@@ -109,6 +110,91 @@ void init( const unsigned int N )
 vec2 attractor(999,999);
 bool attracting = false;
 
+template< typename T >
+class SpatialIndex
+{
+public:
+    typedef std::vector< T* > NeighborList;
+
+    SpatialIndex
+        (
+        const unsigned int numBuckets,  // 2^numBuckets hash buckets
+        const float cellSize            // grid cell size
+        )
+        : mNumBuckets( numBuckets )
+        , mBuckets( 1 << numBuckets )
+        , mInvCellSize( 1.0f / cellSize )
+    {
+        // initialize neighbor offsets
+        for( int k = -1; k <= 1; k++ )
+            for( int j = -1; j <= 1; j++ )
+                for( int i = -1; i <= 1; i++ )
+                    mOffsets.push_back( ivec3( i, j, k ) );
+    }
+
+    void Insert( const glm::vec3& pos, T& thing )
+    {
+        const glm::ivec3 ipos = Discretize( pos, mInvCellSize );
+        unsigned int idx = TeschnerHash( ipos, mNumBuckets );
+        mBuckets[ idx ].push_back( &thing );
+    }
+
+    NeighborList Neighbors( const glm::vec3& pos ) const
+    {
+        const ivec3 ipos = Discretize( pos, mInvCellSize );
+
+        NeighborList ret;
+        for( size_t i = 0; i < mOffsets.size(); ++i )
+        {
+            const unsigned int idx = TeschnerHash( mOffsets[i] + ipos, mNumBuckets );
+            const NeighborList& bucket = mBuckets[ idx ];
+            ret.insert( ret.end(), bucket.begin(), bucket.end() );
+        }
+        return ret;
+    }
+
+    void Clear()
+    {
+        for( HashBuckets::iterator i = mBuckets.begin(); i != mBuckets.end(); ++i )
+        {
+            i->clear();
+        }
+    }
+
+private:
+    // "Optimized Spatial Hashing for Collision Detection of Deformable Objects"
+    // Teschner, Heidelberger, et al.
+    // tableSize is the desired hash table size in powers-of-two ( 12 == 2^12 == 4096 )
+    // returns a hash between 0 and 2^tableSize-1
+    static inline unsigned int TeschnerHash( const ivec3& pos, const unsigned int tableSize )
+    {
+        const unsigned int p1 = 73856093;
+        const unsigned int p2 = 19349663;
+        const unsigned int p3 = 83492791;
+        const unsigned int modval = ( ( 1 << tableSize ) - 1 );
+        return ( ( pos.x * p1 ) ^ ( pos.y * p2 ) ^ ( pos.z * p3 ) ) & modval;
+    }
+
+    // returns the indexes of the cell pos is in, assuming a cellSize grid
+    // invCellSize is the inverse of the desired cell size
+    static inline ivec3 Discretize( const vec3& pos, const float invCellSize )
+    {
+        return ivec3( glm::floor( pos * invCellSize ) );
+    }
+
+    unsigned int mNumBuckets;
+
+    typedef std::vector< NeighborList > HashBuckets;
+    HashBuckets mBuckets;
+
+    std::vector< glm::ivec3 > mOffsets;
+
+    float mInvCellSize;
+};
+
+typedef SpatialIndex< Particle > IndexType;
+IndexType index( 12, r );
+
 // --------------------------------------------------------------------
 void step()
 {
@@ -130,10 +216,10 @@ void step()
         // If the velocity is really high, we're going to cheat and cap it.
         // This will not damp all motion. It's not physically-based at all. Just
         // a little bit of a hack.
-        const float max_vel = 2.f;
+        const float max_vel = 2.0f;
         const float vel_mag = glm::length2( particles[i].vel );
         // If the velocity is greater than the max velocity, then cut it in half.
-        if( vel_mag > max_vel*max_vel )
+        if( vel_mag > max_vel * max_vel )
         {
             particles[i].vel *= .5f;
         }
@@ -167,6 +253,13 @@ void step()
         particles[i].neighbors.clear();
     }
 
+    // update spatial index
+    index.Clear();
+    for( int i = 0; i < (int)particles.size(); ++i )
+    {
+        index.Insert( vec3( particles[i].pos, 0.0f ), particles[i] );
+    }
+
     // DENSITY
     // Calculate the density by basically making a weighted sum
     // of the distances of neighboring particles within the radius of support (r)
@@ -177,18 +270,21 @@ void step()
         particles[i].rho_near = 0;
 
         // We will sum up the 'near' and 'far' densities.
-        float d=0;
-        float dn=0;
+        float d = 0;
+        float dn = 0;
 
         // Now look at every other Particle
-        for( int j = 0; j < (int)particles.size(); ++j )
+        IndexType::NeighborList neigh = index.Neighbors( vec3( particles[i].pos, 0.0f ) );
+        for( int j = 0; j < (int)neigh.size(); ++j )
         {
-            // We only want to look at each pair of particles just once.
-            // And do not calculate an interaction for a Particle with itself!
-            if( j >= i ) continue;
+            if( neigh[j] == &particles[i] )
+            {
+                // do not calculate an interaction for a Particle with itself!
+                continue;
+            }
 
             // The vector seperating the two particles
-            const vec2 rij = particles[j].pos - particles[i].pos;
+            const vec2 rij = neigh[j]->pos - particles[i].pos;
 
             // Along with the squared distance between
             const float rij_len2 = glm::length2( rij );
@@ -197,7 +293,7 @@ void step()
             if( rij_len2 < rsq )
             {
                 // Get the actual distance from the squared distance.
-                float rij_len = sqrt(rij_len2);
+                float rij_len = sqrt( rij_len2 );
 
                 // And calculated the weighted distance values
                 const float q = 1 - ( rij_len / r );
@@ -207,14 +303,10 @@ void step()
                 d += q2;
                 dn += q3;
 
-                // Accumulate on the Neighbor
-                particles[j].rho += q2;
-                particles[j].rho_near += q3;
-
                 // Set up the Neighbor list for faster access later.
                 Neighbor n;
-                n.j = j;
-                n.q = q; 
+                n.j = neigh[j];
+                n.q = q;
                 n.q2 = q2;
                 particles[i].neighbors.push_back(n);
             }
@@ -246,17 +338,16 @@ void step()
             const Neighbor& n = particles[i].neighbors[ni];
 
             // The vector from Particle i to Particle j
-            const vec2 rij = particles[n.j].pos - particles[i].pos;
+            const vec2 rij = (*n.j).pos - particles[i].pos;
 
             // calculate the force from the pressures calculated above
-            const float dm 
-                = n.q * ( particles[i].press + particles[n.j].press ) 
-				+ n.q2 * ( particles[i].press_near + particles[n.j].press_near );
+            const float dm
+                = n.q * ( particles[i].press + (*n.j).press )
+				+ n.q2 * ( particles[i].press_near + (*n.j).press_near );
 
             // Get the direction of the force
             const vec2 D = glm::normalize( rij ) * dm;
             dX += D;
-            particles[n.j].force += D;
         }
 
         particles[i].force -= dX;
@@ -283,25 +374,24 @@ void step()
         {
             const Neighbor& n = particles[i].neighbors[ni];
 
-            const vec2 rij = particles[n.j].pos - particles[i].pos;
+            const vec2 rij = (*n.j).pos - particles[i].pos;
             const float l = glm::length( rij );
             const float q = l / r;
 
             const vec2 rijn = ( rij / l );
             // Get the projection of the velocities onto the vector between them.
-            const float u = glm::dot( particles[i].vel - particles[n.j].vel, rijn );
+            const float u = glm::dot( particles[i].vel - (*n.j).vel, rijn );
             if( u > 0 )
             {
                 // Calculate the viscosity impulse between the two particles
                 // based on the quadratic function of projected length.
-                const vec2 I 
-                    = ( 1 - q ) 
-                    * ( particles[n.j].sigma * u + particles[n.j].beta * u * u ) 
+                const vec2 I
+                    = ( 1 - q )
+                    * ( (*n.j).sigma * u + (*n.j).beta * u * u )
                     * rijn;
 
-                // Apply the impulses on the two particles
+                // Apply the impulses on the current particle
                 particles[i].vel -= I * 0.5f;
-                particles[n.j].vel += I * 0.5f;
             }
         }
     }
@@ -345,19 +435,18 @@ void idle()
 void keyboard(unsigned char c, int x, int y)
 {
     const float radius = SIM_W / 8;
-    const float dtheta = 3.f;
 
     switch(c)
     {
-        // Quit
     case 27:
     case 'q':
     case 'Q':
+        // Quit
         exit(0);
         break;
 
-        // If we press the space key, add some particles.
     case ' ':
+        // If we press the space key, add some particles.
         for( float y = SIM_W * 2 - radius; y <= SIM_W * 2 + radius; y += r * .5f )
         {
             for( float x = -radius; x <= radius; x += r * .5f )
@@ -407,7 +496,7 @@ void mouse(int button, int state, int x, int y)
 // --------------------------------------------------------------------
 int main( int argc, char** argv )
 {
-#if 1
+#if 0
     ofstream file( "benchmark.txt" );
     typedef iostreams::tee_device< std::ostream, std::ofstream > Tee;
     typedef iostreams::stream< Tee > TeeStream;

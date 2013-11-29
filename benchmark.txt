@@ -1,18 +1,18 @@
 --------------------------------
 Number of steps: 3000
 Number of particles: 1024
-Elapsed time: 3381 milliseconds
-Microseconds per step: 1127.11
+Elapsed time: 2535 milliseconds
+Microseconds per step: 845.031
 
 Number of particles: 2048
-Elapsed time: 8190 milliseconds
-Microseconds per step: 2730.3
+Elapsed time: 3541 milliseconds
+Microseconds per step: 1180.34
 
 Number of particles: 4096
-Elapsed time: 30358 milliseconds
-Microseconds per step: 10119.4
+Elapsed time: 8366 milliseconds
+Microseconds per step: 2788.81
 
 Number of particles: 8192
-Elapsed time: 122967 milliseconds
-Microseconds per step: 40989.3
+Elapsed time: 20435 milliseconds
+Microseconds per step: 6811.68
 
