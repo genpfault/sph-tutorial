@@ -1,9 +1,8 @@
-/* Real-Time Physics Tutorials
- * Brandon Pelfrey
- * SPH Fluid Simulation
- *
- * g++ tutorial_3.cpp -lglut -O3 -fopenmp -o tutorial_3
- */
+// Real-Time Physics Tutorials
+// Brandon Pelfrey
+// SPH Fluid Simulation
+//
+// g++ tutorial_3.cpp -lglut -O3 -fopenmp -o tutorial_3
 
 
 #include <iostream>
@@ -14,7 +13,7 @@
 #include <omp.h>
 using namespace std;
 
-//////////////////////////////////////////
+// --------------------------------------------------------------------
 // A simple two dimensional vector class
 struct Vec2 {
     float x,y;
@@ -35,30 +34,35 @@ struct Vec2 {
 };
 Vec2 operator*(float b, const Vec2& a) { return Vec2(a.x * b, a.y * b); }
 
-//////////////////////////////////////////
+// --------------------------------------------------------------------
 // A structure for holding two neighboring particles and their weighted distances
-struct neighbor { int i, j; float q, q2; };
+struct neighbor
+{ 
+    int i, j; 
+    float q, q2; 
+};
 
 // The particle structure holding all of the relevant information.
-struct particle {
+struct particle 
+{
     Vec2 pos, pos_old, vel, force;
     float mass, rho, rho_near, press, press_near, sigma, beta;
     vector<neighbor> neighbors;
 };
-//////////////////////////////////////////
-int window_w=512, window_h=512; // Initial Size of the Window
-int N = 1024;                   // Number of Particles in the simulation
+
+// --------------------------------------------------------------------
+unsigned int N = 1024;          // Number of Particles in the simulation
 
 float G = .02f * .25;           // Gravitational Constant for our simulation
 
 float spacing = 2.f;            // Spacing of particles
-float k = spacing / 1000.0;     // Far pressure weight
+float k = spacing / 1000.0f;    // Far pressure weight
 float k_near = k*10;            // Near pressure weight
 float rest_density = 3;         // Rest Density
-float r=spacing*1.25;           // Radius of Support
-float rsq=r*r;                  // ... squared for performance stuff
+float r= spacing * 1.25f;       // Radius of Support
+float rsq = r * r;              // ... squared for performance stuff
 
-float SIM_W=50;                 // The size of the world
+float SIM_W = 50;               // The size of the world
 float bottom = 0;               // The floor of the world
 
 // Our collection of particles
@@ -68,43 +72,45 @@ vector<particle> particles;
 Vec2 attractor(999,999);
 bool attracting = false;
 
-//////////////////////////////////////////
-// Some utility stuff.
+
 // Between [0,1]
-float rand01() { return (float)rand() * (1.f / RAND_MAX); }
-// Between [a,b]
-float randab(float a, float b) { return a + (b-a)*rand01(); }
-//////////////////////////////////////////
-
-void render()
-{
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-    glLoadIdentity();
-
-    // Draw Fluid Particles
-    glPointSize(r*2);
-    glBegin(GL_POINTS);
-    for(int i=0; i < particles.size(); ++i)
-    {
-        // We'll let the color be determined by
-        // ... pressure for the blue component
-        // ... x-velocity for the red component
-        // ... y-velocity for the green-component
-        float c = .1 * particles[i].rho;
-        float x = 20 * fabs(particles[i].vel.x);
-        float y = 20 * fabs(particles[i].vel.y);
-
-        glColor3f(.3+x,.3+y,.3+c);
-        //      glColor3f(.5,.3,.7);
-        glVertex2f(particles[i].pos.x, particles[i].pos.y);
-    }
-    glEnd();
-
-    glutSwapBuffers();
+float rand01()
+{ 
+    return (float)rand() * (1.f / RAND_MAX); 
 }
-bool asd = false;
-//////////////////////////////////////////
-void idle()
+
+// Between [a,b]
+float randab(float a, float b)
+{ 
+    return a + (b-a)*rand01();
+}
+
+
+// --------------------------------------------------------------------
+void init()
+{
+    // Initialize particles
+    // We will make a block of particles with a total width of 1/4 of the screen.
+    float w = SIM_W/4;
+    for(float y=bottom+1; y <= 10000; y+=r*.5f)
+    {
+        for(float x=-w; x <= w; x+=r*.5f)
+        {
+            if(particles.size() > N) break;
+
+            particle p;
+            p.pos = Vec2(x, y);
+            p.pos_old = p.pos + 0.001f * Vec2(rand01(), rand01());
+            p.force = Vec2(0,0);
+            p.sigma = .1f;
+            p.beta = 0.f;
+            particles.push_back(p);
+        }
+    }
+}
+
+// --------------------------------------------------------------------
+void step()
 {
     // UPDATE
     //
@@ -113,7 +119,7 @@ void idle()
 
     // For each particles i ...
 #pragma omp parallel for
-    for(int i=0; i < particles.size(); ++i)
+    for(int i=0; i < (int)particles.size(); ++i)
     {
         // Normal verlet stuff
         particles[i].pos_old = particles[i].pos;
@@ -164,7 +170,7 @@ void idle()
 
     // For each particle ...
 #pragma omp parallel for
-    for(int i=0; i < particles.size(); ++i)
+    for(int i=0; i < (int)particles.size(); ++i)
     {
         particles[i].rho = particles[i].rho_near = 0;
 
@@ -172,7 +178,7 @@ void idle()
         float d=0, dn=0;
 
         // Now look at every other particle
-        for(int j=0; j < particles.size(); ++j)
+        for(int j=0; j < (int)particles.size(); ++j)
         {
             // We only want to look at each pair of particles just once.
             // And do not calculate an interaction for a particle with itself!
@@ -218,7 +224,7 @@ void idle()
     //
     // Make the simple pressure calculation from the equation of state.
 #pragma omp parallel for
-    for(int i=0; i < particles.size(); ++i)
+    for(int i=0; i < (int)particles.size(); ++i)
     {
         particles[i].press = k * (particles[i].rho - rest_density);
         particles[i].press_near = k_near * particles[i].rho_near;
@@ -231,7 +237,7 @@ void idle()
 
     // For each particle ...
 #pragma omp parallel for
-    for(int i=0; i < particles.size(); ++i)
+    for(int i=0; i < (int)particles.size(); ++i)
     {
         Vec2 dX = Vec2();
 
@@ -269,10 +275,10 @@ void idle()
 
     // For each particle
 #pragma omp parallel for
-    for(int i=0; i < particles.size(); ++i)
+    for(int i=0; i < (int)particles.size(); ++i)
     {
         // For each of that particles neighbors
-        for(int ni=0; ni < particles[i].neighbors.size(); ++ni)
+        for(int ni=0; ni < (int)particles[i].neighbors.size(); ++ni)
         {
             neighbor n = particles[i].neighbors[ni];
 
@@ -296,12 +302,51 @@ void idle()
 
         }
     }
-
-    // Draw the scene
-    render();
 }
 
-//////////////////////////////////////////
+// --------------------------------------------------------------------
+void render()
+{
+    glClearColor( 0, 0, 0, 1 );
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+    // create a world with dimensions x:[-SIM_W,SIM_W] and y:[0,SIM_W*2]
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho( -SIM_W, SIM_W, 0, 2*SIM_W, -1, 1 );
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    // Draw Fluid Particles
+    glPointSize(r*2);
+    glBegin(GL_POINTS);
+    for(int i=0; i < (int)particles.size(); ++i)
+    {
+        // We'll let the color be determined by
+        // ... pressure for the blue component
+        // ... x-velocity for the red component
+        // ... y-velocity for the green-component
+        float c = 0.1f * particles[i].rho;
+        float x = 20 * fabs(particles[i].vel.x);
+        float y = 20 * fabs(particles[i].vel.y);
+
+        glColor3f( 0.3f + x, 0.3f + y, 0.3f + c );
+        //      glColor3f(.5,.3,.7);
+        glVertex2f(particles[i].pos.x, particles[i].pos.y);
+    }
+    glEnd();
+
+    glutSwapBuffers();
+}
+
+void idle()
+{
+    step();
+    glutPostRedisplay();
+}
+
+// --------------------------------------------------------------------
 void keyboard(unsigned char c, int x, int y)
 {
     float radius = SIM_W/8;
@@ -318,7 +363,8 @@ void keyboard(unsigned char c, int x, int y)
 
         // If we press the space key, add some particles.
     case ' ':
-        for(float y=SIM_W*2 - radius; y <= SIM_W*2+radius; y+=r*.5f){
+        for(float y=SIM_W*2 - radius; y <= SIM_W*2+radius; y+=r*.5f)
+        {
             for(float x=-radius; x <= radius; x+=r*.5f)
             {
                 particle p;
@@ -326,25 +372,34 @@ void keyboard(unsigned char c, int x, int y)
                 p.force = Vec2(0,0);
 
                 if( (p.pos - Vec2( 0, SIM_W*2 ) ).len2() < radius*radius )
+                {
                     particles.push_back(p);
+                }
             }
         }
         break;
     }
 }
 
+// --------------------------------------------------------------------
 void motion(int x, int y)
 {
     // This simply updates the location of the mouse attractor.
+    int window_w = glutGet( GLUT_WINDOW_WIDTH );
+    int window_h = glutGet( GLUT_WINDOW_HEIGHT );
     float relx = (float)(x - window_w/2) / window_w;
     float rely = -(float)(y - window_h) / window_h;
     Vec2 mouse = Vec2(relx*SIM_W*2, rely*SIM_W*2);
     attractor = mouse;
 }
 
+// --------------------------------------------------------------------
 void mouse(int button, int state, int x, int y)
 {
-    if(state == GLUT_DOWN) attracting = true;
+    if(state == GLUT_DOWN) 
+    {
+        attracting = true;
+    }
     else
     {
         attracting = false;
@@ -352,42 +407,14 @@ void mouse(int button, int state, int x, int y)
     }
 }
 
-//////////////////////////////////////////
-void init()
-{
-    // create a world with dimensions x:[-SIM_W,SIM_W] and y:[0,SIM_W*2]
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluOrtho2D(-SIM_W,SIM_W,0,2*SIM_W);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    glPointSize(5.f);
-
-    // Initialize particles
-    // We will make a block of particles with a total width of 1/4 of the screen.
-    float w = SIM_W/4;
-    for(float y=bottom+1; y <= 10000; y+=r*.5f)
-        for(float x=-w; x <= w; x+=r*.5f)
-        {
-            if(particles.size() > N) break;
-
-            particle p;
-            p.pos = Vec2(x, y);
-            p.pos_old = p.pos + 0.001f * Vec2(rand01(), rand01());
-            p.force = Vec2(0,0);
-            p.sigma = .1f;
-            p.beta = 0.f;
-            particles.push_back(p);
-        }
-}
-
-//////////////////////////////////////////
+// --------------------------------------------------------------------
 int main(int argc, char **argv)
 {
+    init();
+
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE);
-    glutInitWindowSize(window_w, window_h);
+    glutInitWindowSize(512, 512);
     glutCreateWindow("SPH");
 
     glutDisplayFunc(render);
@@ -396,7 +423,6 @@ int main(int argc, char **argv)
     glutMotionFunc(motion);
     glutMouseFunc(mouse);
 
-    init();
     glutMainLoop();
 }
 
