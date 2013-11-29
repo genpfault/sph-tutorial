@@ -8,10 +8,17 @@
 #include <omp.h>
 
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <cstdlib>
 #include <cmath>
 using namespace std;
+
+#include <boost/iostreams/stream.hpp>
+#include <boost/iostreams/tee.hpp>
+#include <boost/chrono.hpp>
+#include <boost/chrono/chrono_io.hpp>
+using namespace boost;
 
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
@@ -409,8 +416,43 @@ void mouse(int button, int state, int x, int y)
 }
 
 // --------------------------------------------------------------------
-int main(int argc, char **argv)
+int main( int argc, char** argv )
 {
+#if 0
+    ofstream file( "benchmark.txt" );
+    typedef iostreams::tee_device< std::ostream, std::ofstream > Tee;
+    typedef iostreams::stream< Tee > TeeStream;
+    Tee tee( std::cout, file );
+    TeeStream log( tee );
+
+    const int steps = 3000;
+    log << "--------------------------------" << endl;
+    log << "Number of steps: " << steps << endl;
+    for( unsigned int size = 10; size <= 13; ++size )
+    {
+        const unsigned int count = ( 1 << size );
+        log << "Number of particles: " << count << endl;
+
+        init( count );
+
+        typedef chrono::high_resolution_clock clock_t;
+        clock_t::time_point beg, end;
+
+        beg = clock_t::now();
+        for( int i = 0; i < steps; ++i )
+        {
+            step();
+        }
+        end = clock_t::now();
+
+        log << "Elapsed time: " << chrono::duration_cast< chrono::milliseconds >( end - beg ) << endl;
+        log << "Microseconds per step: " << chrono::duration_cast< chrono::microseconds >( end - beg ).count() / (double)steps << endl;
+        log << endl;
+    }
+
+    return 0;
+#endif
+
     init( 2048 );
 
     glutInit(&argc, argv);
