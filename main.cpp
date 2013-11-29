@@ -25,6 +25,20 @@ using namespace boost;
 using namespace glm;
 
 // --------------------------------------------------------------------
+// Between [0,1]
+float rand01()
+{
+    return (float)rand() * (1.f / RAND_MAX);
+}
+
+// --------------------------------------------------------------------
+// Between [a,b]
+float randab(float a, float b)
+{
+    return a + (b-a)*rand01();
+}
+
+// --------------------------------------------------------------------
 // A structure for holding two neighboring particles and their weighted distances
 struct Neighbor
 {
@@ -51,51 +65,31 @@ struct Particle
     vector< Neighbor > neighbors;
 };
 
-// --------------------------------------------------------------------
-float G = .02f * .25;           // Gravitational Constant for our simulation
-
-float spacing = 2.f;            // Spacing of particles
-float k = spacing / 1000.0f;    // Far pressure weight
-float k_near = k*10;            // Near pressure weight
-float rest_density = 3;         // Rest Density
-float r= spacing * 1.25f;       // Radius of Support
-float rsq = r * r;              // ... squared for performance stuff
-
-float SIM_W = 50;               // The size of the world
-float bottom = 0;               // The floor of the world
-
 // Our collection of particles
 vector< Particle > particles;
 
-// Mouse attractor
-vec2 attractor(999,999);
-bool attracting = false;
-
-
-// Between [0,1]
-float rand01()
-{
-    return (float)rand() * (1.f / RAND_MAX);
-}
-
-// Between [a,b]
-float randab(float a, float b)
-{
-    return a + (b-a)*rand01();
-}
-
+// --------------------------------------------------------------------
+const float G = .02f * .25;           // Gravitational Constant for our simulation
+const float spacing = 2.f;            // Spacing of particles
+const float k = spacing / 1000.0f;    // Far pressure weight
+const float k_near = k * 10;          // Near pressure weight
+const float rest_density = 3;         // Rest Density
+const float r = spacing * 1.25f;      // Radius of Support
+const float rsq = r * r;              // ... squared for performance stuff
+const float SIM_W = 50;               // The size of the world
+const float bottom = 0;               // The floor of the world
 
 // --------------------------------------------------------------------
 void init( const unsigned int N )
 {
     // Initialize particles
     // We will make a block of particles with a total width of 1/4 of the screen.
-    float w = SIM_W/4;
-    for(float y=bottom+1; y <= 10000; y+=r*.5f)
+    float w = SIM_W / 4;
+    for( float y = bottom + 1; y <= 10000; y += r * 0.5f )
     {
-        for(float x=-w; x <= w; x+=r*.5f)
+        for(float x = -w; x <= w; x += r * 0.5f )
         {
-            if(particles.size() > N)
+            if( particles.size() > N )
             {
                 break;
             }
@@ -111,15 +105,16 @@ void init( const unsigned int N )
     }
 }
 
+// Mouse attractor
+vec2 attractor(999,999);
+bool attracting = false;
+
 // --------------------------------------------------------------------
 void step()
 {
     // UPDATE
-    //
     // This modified verlet integrator has dt = 1 and calculates the velocity
     // For later use in the simulation.
-
-    // For each particles i ...
 #pragma omp parallel for
     for( int i = 0; i < (int)particles.size(); ++i )
     {
@@ -173,11 +168,8 @@ void step()
     }
 
     // DENSITY
-    //
     // Calculate the density by basically making a weighted sum
     // of the distances of neighboring particles within the radius of support (r)
-
-    // For each Particle ...
 #pragma omp parallel for
     for( int i = 0; i < (int)particles.size(); ++i )
     {
@@ -233,7 +225,6 @@ void step()
     }
 
     // PRESSURE
-    //
     // Make the simple pressure calculation from the equation of state.
 #pragma omp parallel for
     for( int i = 0; i < (int)particles.size(); ++i )
@@ -243,11 +234,8 @@ void step()
     }
 
     // PRESSURE FORCE
-    //
     // We will force particles in or out from their neighbors
     // based on their difference from the rest density.
-
-    // For each Particle ...
 #pragma omp parallel for
     for( int i = 0; i < (int)particles.size(); ++i )
     {
@@ -275,13 +263,10 @@ void step()
     }
 
     // VISCOSITY
-    //
     // This simulation actually may look okay if you don't compute
     // the viscosity section. The effects of numerical damping and
     // surface tension will give a smooth appearance on their own.
     // Try it.
-
-    // For each Particle
 #pragma omp parallel for
     for( int i = 0; i < (int)particles.size(); ++i )
     {
