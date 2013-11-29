@@ -26,14 +26,14 @@ using namespace glm;
 
 // --------------------------------------------------------------------
 // A structure for holding two neighboring particles and their weighted distances
-struct neighbor
+struct Neighbor
 {
     int j;
     float q, q2;
 };
 
-// The particle structure holding all of the relevant information.
-struct particle
+// The Particle structure holding all of the relevant information.
+struct Particle
 {
     vec2 pos;
     float r, g, b;
@@ -48,7 +48,7 @@ struct particle
     float press_near;
     float sigma;
     float beta;
-    vector<neighbor> neighbors;
+    vector< Neighbor > neighbors;
 };
 
 // --------------------------------------------------------------------
@@ -65,7 +65,7 @@ float SIM_W = 50;               // The size of the world
 float bottom = 0;               // The floor of the world
 
 // Our collection of particles
-vector<particle> particles;
+vector< Particle > particles;
 
 // Mouse attractor
 vec2 attractor(999,999);
@@ -100,7 +100,7 @@ void init( const unsigned int N )
                 break;
             }
 
-            particle p;
+            Particle p;
             p.pos = vec2(x, y);
             p.pos_old = p.pos + 0.001f * vec2(rand01(), rand01());
             p.force = vec2(0,0);
@@ -121,7 +121,7 @@ void step()
 
     // For each particles i ...
 #pragma omp parallel for
-    for(int i=0; i < (int)particles.size(); ++i)
+    for( int i = 0; i < (int)particles.size(); ++i )
     {
         // Apply the currently accumulated forces
         particles[i].pos += particles[i].force;
@@ -135,32 +135,34 @@ void step()
         // If the velocity is really high, we're going to cheat and cap it.
         // This will not damp all motion. It's not physically-based at all. Just
         // a little bit of a hack.
-        float max_vel = 2.f;
-        float vel_mag = glm::length2( particles[i].vel );
+        const float max_vel = 2.f;
+        const float vel_mag = glm::length2( particles[i].vel );
         // If the velocity is greater than the max velocity, then cut it in half.
-        if(vel_mag > max_vel*max_vel)
-            particles[i].vel = particles[i].vel * .5f;
+        if( vel_mag > max_vel*max_vel )
+        {
+            particles[i].vel *= .5f;
+        }
 
         // Normal verlet stuff
         particles[i].pos_old = particles[i].pos;
         particles[i].pos += particles[i].vel;
 
-        // If the particle is outside the bounds of the world, then
+        // If the Particle is outside the bounds of the world, then
         // Make a little spring force to push it back in.
-        if(particles[i].pos.x < -SIM_W) particles[i].force.x -= (particles[i].pos.x - -SIM_W) / 8;
-        if(particles[i].pos.x >  SIM_W) particles[i].force.x -= (particles[i].pos.x - SIM_W) / 8;
-        if(particles[i].pos.y < bottom) particles[i].force.y -= (particles[i].pos.y - bottom) / 8;
-        //if(particles[i].pos.y > SIM_W*2)particles[i].force.y -= (particles[i].pos.y - SIM_W*2) / 8;
+        if( particles[i].pos.x < -SIM_W ) particles[i].force.x -= ( particles[i].pos.x - -SIM_W ) / 8;
+        if( particles[i].pos.x >  SIM_W ) particles[i].force.x -= ( particles[i].pos.x - SIM_W ) / 8;
+        if( particles[i].pos.y < bottom ) particles[i].force.y -= ( particles[i].pos.y - bottom ) / 8;
+        //if( particles[i].pos.y > SIM_W * 2 ) particles[i].force.y -= ( particles[i].pos.y - SIM_W * 2 ) / 8;
 
         // Handle the mouse attractor.
         // It's a simple spring based attraction to where the mouse is.
-        float attr_dist2 = glm::length2( particles[i].pos - attractor );
-        const float attr_l = SIM_W/4;
+        const float attr_dist2 = glm::length2( particles[i].pos - attractor );
+        const float attr_l = SIM_W / 4;
         if( attracting )
         {
-            if( attr_dist2 < attr_l*attr_l )
+            if( attr_dist2 < attr_l * attr_l )
             {
-                particles[i].force -= (particles[i].pos - attractor) / 256.0f;
+                particles[i].force -= ( particles[i].pos - attractor ) / 256.0f;
             }
         }
 
@@ -175,9 +177,9 @@ void step()
     // Calculate the density by basically making a weighted sum
     // of the distances of neighboring particles within the radius of support (r)
 
-    // For each particle ...
+    // For each Particle ...
 #pragma omp parallel for
-    for(int i=0; i < (int)particles.size(); ++i)
+    for( int i = 0; i < (int)particles.size(); ++i )
     {
         particles[i].rho = 0;
         particles[i].rho_near = 0;
@@ -186,39 +188,39 @@ void step()
         float d=0;
         float dn=0;
 
-        // Now look at every other particle
-        for(int j=0; j < (int)particles.size(); ++j)
+        // Now look at every other Particle
+        for( int j = 0; j < (int)particles.size(); ++j )
         {
             // We only want to look at each pair of particles just once.
-            // And do not calculate an interaction for a particle with itself!
-            if(j >= i) continue;
+            // And do not calculate an interaction for a Particle with itself!
+            if( j >= i ) continue;
 
             // The vector seperating the two particles
-            vec2 rij = particles[j].pos - particles[i].pos;
+            const vec2 rij = particles[j].pos - particles[i].pos;
 
             // Along with the squared distance between
-            float rij_len2 = glm::length2( rij );
+            const float rij_len2 = glm::length2( rij );
 
             // If they're within the radius of support ...
-            if(rij_len2 < rsq)
+            if( rij_len2 < rsq )
             {
                 // Get the actual distance from the squared distance.
                 float rij_len = sqrt(rij_len2);
 
                 // And calculated the weighted distance values
-                float q = 1 - ( rij_len / r );
-                float q2 = q*q;
-                float q3 = q2*q;
+                const float q = 1 - ( rij_len / r );
+                const float q2 = q * q;
+                const float q3 = q2 * q;
 
                 d += q2;
                 dn += q3;
 
-                // Accumulate on the neighbor
+                // Accumulate on the Neighbor
                 particles[j].rho += q2;
                 particles[j].rho_near += q3;
 
-                // Set up the neighbor list for faster access later.
-                neighbor n;
+                // Set up the Neighbor list for faster access later.
+                Neighbor n;
                 n.j = j;
                 n.q = q; 
                 n.q2 = q2;
@@ -226,17 +228,17 @@ void step()
             }
         }
 
-        particles[i].rho        += d;
-        particles[i].rho_near   += dn;
+        particles[i].rho += d;
+        particles[i].rho_near += dn;
     }
 
     // PRESSURE
     //
     // Make the simple pressure calculation from the equation of state.
 #pragma omp parallel for
-    for(int i=0; i < (int)particles.size(); ++i)
+    for( int i = 0; i < (int)particles.size(); ++i )
     {
-        particles[i].press = k * (particles[i].rho - rest_density);
+        particles[i].press = k * ( particles[i].rho - rest_density );
         particles[i].press_near = k_near * particles[i].rho_near;
     }
 
@@ -245,26 +247,26 @@ void step()
     // We will force particles in or out from their neighbors
     // based on their difference from the rest density.
 
-    // For each particle ...
+    // For each Particle ...
 #pragma omp parallel for
-    for(int i=0; i < (int)particles.size(); ++i)
+    for( int i = 0; i < (int)particles.size(); ++i )
     {
         // For each of the neighbors
         vec2 dX;
-        for(int ni=0; ni < (int)particles[i].neighbors.size(); ++ni)
+        for( int ni = 0; ni < (int)particles[i].neighbors.size(); ++ni )
         {
-            const neighbor& n = particles[i].neighbors[ni];
+            const Neighbor& n = particles[i].neighbors[ni];
 
-            // The vector from particle i to particle j
-            vec2 rij = particles[n.j].pos - particles[i].pos;
+            // The vector from Particle i to Particle j
+            const vec2 rij = particles[n.j].pos - particles[i].pos;
 
             // calculate the force from the pressures calculated above
-            float dm = 
-                n.q * (particles[i].press + particles[n.j].press) +
-                n.q2 * (particles[i].press_near + particles[n.j].press_near);
+            const float dm 
+                = n.q * ( particles[i].press + particles[n.j].press ) 
+				+ n.q2 * ( particles[i].press_near + particles[n.j].press_near );
 
             // Get the direction of the force
-            vec2 D = glm::normalize( rij ) * dm;
+            const vec2 D = glm::normalize( rij ) * dm;
             dX += D;
             particles[n.j].force += D;
         }
@@ -279,9 +281,9 @@ void step()
     // surface tension will give a smooth appearance on their own.
     // Try it.
 
-    // For each particle
+    // For each Particle
 #pragma omp parallel for
-    for(int i=0; i < (int)particles.size(); ++i)
+    for( int i = 0; i < (int)particles.size(); ++i )
     {
         // We'll let the color be determined by
         // ... x-velocity for the red component
@@ -292,22 +294,25 @@ void step()
         particles[i].b = 0.3f + (0.1f * particles[i].rho );
 
         // For each of that particles neighbors
-        for(int ni=0; ni < (int)particles[i].neighbors.size(); ++ni)
+        for( int ni = 0; ni < (int)particles[i].neighbors.size(); ++ni )
         {
-            const neighbor& n = particles[i].neighbors[ni];
+            const Neighbor& n = particles[i].neighbors[ni];
 
-            vec2 rij = particles[n.j].pos - particles[i].pos;
-            float l = glm::length( rij );
-            float q = l / r;
+            const vec2 rij = particles[n.j].pos - particles[i].pos;
+            const float l = glm::length( rij );
+            const float q = l / r;
 
-            vec2 rijn = (rij / l);
+            const vec2 rijn = ( rij / l );
             // Get the projection of the velocities onto the vector between them.
-            float u = glm::dot( particles[i].vel - particles[n.j].vel, rijn );
-            if(u > 0)
+            const float u = glm::dot( particles[i].vel - particles[n.j].vel, rijn );
+            if( u > 0 )
             {
                 // Calculate the viscosity impulse between the two particles
                 // based on the quadratic function of projected length.
-                vec2 I = (1 - q) * (particles[n.j].sigma * u + particles[n.j].beta * u*u) * rijn;
+                const vec2 I 
+                    = ( 1 - q ) 
+                    * ( particles[n.j].sigma * u + particles[n.j].beta * u * u ) 
+                    * rijn;
 
                 // Apply the impulses on the two particles
                 particles[i].vel -= I * 0.5f;
@@ -333,8 +338,8 @@ void display()
 
     // Draw Fluid Particles
     glPointSize(r*2);
-    glVertexPointer( 2, GL_FLOAT, sizeof(particle), &particles[0].pos );
-    glColorPointer( 3, GL_FLOAT, sizeof(particle), &particles[0].r );
+    glVertexPointer( 2, GL_FLOAT, sizeof(Particle), &particles[0].pos );
+    glColorPointer( 3, GL_FLOAT, sizeof(Particle), &particles[0].r );
     glEnableClientState( GL_VERTEX_ARRAY );
     glEnableClientState( GL_COLOR_ARRAY );
     glDrawArrays( GL_POINTS, 0, particles.size() );
@@ -354,7 +359,7 @@ void idle()
 // --------------------------------------------------------------------
 void keyboard(unsigned char c, int x, int y)
 {
-    float radius = SIM_W/8;
+    const float radius = SIM_W / 8;
     const float dtheta = 3.f;
 
     switch(c)
@@ -368,17 +373,17 @@ void keyboard(unsigned char c, int x, int y)
 
         // If we press the space key, add some particles.
     case ' ':
-        for(float y=SIM_W*2 - radius; y <= SIM_W*2+radius; y+=r*.5f)
+        for( float y = SIM_W * 2 - radius; y <= SIM_W * 2 + radius; y += r * .5f )
         {
-            for(float x=-radius; x <= radius; x+=r*.5f)
+            for( float x = -radius; x <= radius; x += r * .5f )
             {
-                particle p;
+                Particle p;
                 p.pos = p.pos_old = vec2(x , y) + vec2(rand01(), rand01());
                 p.force = vec2(0,0);
                 p.sigma = 3.f;
                 p.beta = 4.f;
 
-                if( glm::length2( p.pos - vec2( 0, SIM_W*2 ) ) < radius*radius )
+                if( glm::length2( p.pos - vec2( 0, SIM_W * 2 ) ) < radius * radius )
                 {
                     particles.push_back(p);
                 }
