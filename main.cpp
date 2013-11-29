@@ -13,26 +13,9 @@
 #include <cmath>
 using namespace std;
 
-// --------------------------------------------------------------------
-// A simple two dimensional vector class
-struct Vec2 {
-    float x,y;
-    Vec2() :x(0),y(0) { }
-    Vec2(float a, float b) : x(a), y(b) { }
-    Vec2 operator+(const Vec2& b) const { return Vec2(x+b.x, y+b.y); }
-    Vec2 operator-(const Vec2& b) const { return Vec2(x-b.x, y-b.y); }
-    Vec2 & operator=(const Vec2& b) { x=b.x; y=b.y; return *this; }
-    Vec2 & operator+=(const Vec2& b) { return *this = *this + b; }
-    Vec2 & operator-=(const Vec2& b) { return *this = *this - b; }
-
-    float operator*(const Vec2& b) const { return x*b.x + y*b.y; }
-    Vec2 operator*(float b) const { return Vec2(x * b, y * b); }
-    Vec2 operator/(float b) const { return Vec2(x / b, y / b); }
-    float len2() const { return *this * *this; }
-    float len() const { return sqrt(len2()); }
-    Vec2 normal() const { return *this / len(); }
-};
-Vec2 operator*(float b, const Vec2& a) { return Vec2(a.x * b, a.y * b); }
+#include <glm/glm.hpp>
+#include <glm/gtx/norm.hpp>
+using namespace glm;
 
 // --------------------------------------------------------------------
 // A structure for holding two neighboring particles and their weighted distances
@@ -45,12 +28,12 @@ struct neighbor
 // The particle structure holding all of the relevant information.
 struct particle
 {
-    Vec2 pos;
+    vec2 pos;
     float r, g, b;
 
-    Vec2 pos_old;
-    Vec2 vel;
-    Vec2 force;
+    vec2 pos_old;
+    vec2 vel;
+    vec2 force;
     float mass, rho, rho_near, press, press_near, sigma, beta;
     vector<neighbor> neighbors;
 };
@@ -74,7 +57,7 @@ float bottom = 0;               // The floor of the world
 vector<particle> particles;
 
 // Mouse attractor
-Vec2 attractor(999,999);
+vec2 attractor(999,999);
 bool attracting = false;
 
 
@@ -104,9 +87,9 @@ void init()
             if(particles.size() > N) break;
 
             particle p;
-            p.pos = Vec2(x, y);
-            p.pos_old = p.pos + 0.001f * Vec2(rand01(), rand01());
-            p.force = Vec2(0,0);
+            p.pos = vec2(x, y);
+            p.pos_old = p.pos + 0.001f * vec2(rand01(), rand01());
+            p.force = vec2(0,0);
             p.sigma = .1f;
             p.beta = 0.f;
             particles.push_back(p);
@@ -134,7 +117,7 @@ void step()
         particles[i].pos += particles[i].force;
 
         // Restart the forces with gravity only. We'll add the rest later.
-        particles[i].force = Vec2(0,-G);
+        particles[i].force = vec2( 0.0f, -::G );
 
         // Calculate the velocity for later.
         particles[i].vel = particles[i].pos - particles[i].pos_old;
@@ -143,7 +126,7 @@ void step()
         // This will not damp all motion. It's not physically-based at all. Just
         // a little bit of a hack.
         float max_vel = 2.f;
-        float vel_mag = particles[i].vel.len2();
+        float vel_mag = glm::length2( particles[i].vel );
         // If the velocity is greater than the max velocity, then cut it in half.
         if(vel_mag > max_vel*max_vel)
             particles[i].vel = particles[i].vel * .5f;
@@ -157,14 +140,19 @@ void step()
 
         // Handle the mouse attractor.
         // It's a simple spring based attraction to where the mouse is.
-        float attr_dist2 = (particles[i].pos - attractor).len2();
+        float attr_dist2 = glm::length2( particles[i].pos - attractor );
         const float attr_l = SIM_W/4;
         if( attracting )
+        {
             if( attr_dist2 < attr_l*attr_l )
-                particles[i].force -= (particles[i].pos - attractor) / 256;
+            {
+                particles[i].force -= (particles[i].pos - attractor) / 256.0f;
+            }
+        }
 
         // Reset the nessecary items.
-        particles[i].rho = particles[i].rho_near = 0;
+        particles[i].rho = 0;
+        particles[i].rho_near = 0;
         particles[i].neighbors.clear();
     }
 
@@ -190,10 +178,10 @@ void step()
             if(j >= i) continue;
 
             // The vector seperating the two particles
-            Vec2 rij = particles[j].pos - particles[i].pos;
+            vec2 rij = particles[j].pos - particles[i].pos;
 
             // Along with the squared distance between
-            float rij_len2 = rij.len2();
+            float rij_len2 = glm::length2( rij );
 
             // If they're within the radius of support ...
             if(rij_len2 < rsq)
@@ -202,7 +190,7 @@ void step()
                 float rij_len = sqrt(rij_len2);
 
                 // And calculated the weighted distance values
-                float q = 1 - rij_len / r;
+                float q = 1 - ( rij_len / r );
                 float q2 = q*q;
                 float q3 = q2*q;
 
@@ -244,7 +232,7 @@ void step()
 #pragma omp parallel for
     for(int i=0; i < (int)particles.size(); ++i)
     {
-        Vec2 dX = Vec2();
+        vec2 dX = vec2();
 
         // For each of the neighbors
         int ncount = particles[i].neighbors.size();
@@ -256,14 +244,14 @@ void step()
             float q2(n.q2);
 
             // The vector from particle i to particle j
-            Vec2 rij = particles[j].pos - particles[i].pos;
+            vec2 rij = particles[j].pos - particles[i].pos;
 
             // calculate the force from the pressures calculated above
             float dm = (particles[i].press + particles[j].press) * q +
                 (particles[i].press_near + particles[j].press_near) * q2;
 
             // Get the direction of the force
-            Vec2 D = rij.normal() * dm;
+            vec2 D = glm::normalize( rij ) * dm;
             dX += D;
             particles[j].force += D;
         }
@@ -295,24 +283,23 @@ void step()
         {
             neighbor n = particles[i].neighbors[ni];
 
-            Vec2 rij = particles[n.j].pos - particles[i].pos;
-            float l = (rij).len();
+            vec2 rij = particles[n.j].pos - particles[i].pos;
+            float l = glm::length( rij );
             float q = l / r;
 
-            Vec2 rijn = (rij / l);
+            vec2 rijn = (rij / l);
             // Get the projection of the velocities onto the vector between them.
-            float u = (particles[n.i].vel - particles[n.j].vel) * rijn;
+            float u = glm::dot( particles[n.i].vel - particles[n.j].vel, rijn );
             if(u > 0)
             {
                 // Calculate the viscosity impulse between the two particles
                 // based on the quadratic function of projected length.
-                Vec2 I = (1 - q) * (particles[n.j].sigma * u + particles[n.j].beta * u*u) * rijn;
+                vec2 I = (1 - q) * (particles[n.j].sigma * u + particles[n.j].beta * u*u) * rijn;
 
                 // Apply the impulses on the two particles
-                particles[n.i].vel -= I * 0.5;
-                particles[n.j].vel += I * 0.5;
+                particles[n.i].vel -= I * 0.5f;
+                particles[n.j].vel += I * 0.5f;
             }
-
         }
     }
 }
@@ -372,10 +359,12 @@ void keyboard(unsigned char c, int x, int y)
             for(float x=-radius; x <= radius; x+=r*.5f)
             {
                 particle p;
-                p.pos = p.pos_old = Vec2(x , y) + Vec2(rand01(), rand01());
-                p.force = Vec2(0,0);
+                p.pos = p.pos_old = vec2(x , y) + vec2(rand01(), rand01());
+                p.force = vec2(0,0);
+                p.sigma  = 3.f;
+                p.beta = 4.f;
 
-                if( (p.pos - Vec2( 0, SIM_W*2 ) ).len2() < radius*radius )
+                if( glm::length2( p.pos - vec2( 0, SIM_W*2 ) ) < radius*radius )
                 {
                     particles.push_back(p);
                 }
@@ -393,7 +382,7 @@ void motion(int x, int y)
     int window_h = glutGet( GLUT_WINDOW_HEIGHT );
     float relx = (float)(x - window_w/2) / window_w;
     float rely = -(float)(y - window_h) / window_h;
-    Vec2 mouse = Vec2(relx*SIM_W*2, rely*SIM_W*2);
+    vec2 mouse = vec2(relx*SIM_W*2, rely*SIM_W*2);
     attractor = mouse;
 }
 
@@ -407,7 +396,7 @@ void mouse(int button, int state, int x, int y)
     else
     {
         attracting = false;
-        attractor = Vec2(SIM_W * 99, SIM_W * 99);
+        attractor = vec2(SIM_W * 99, SIM_W * 99);
     }
 }
 
