@@ -14,6 +14,7 @@
 #include <cmath>
 using namespace std;
 
+#include <boost/unordered_map.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/tee.hpp>
 #include <boost/chrono.hpp>
@@ -111,72 +112,6 @@ vec2 attractor(999,999);
 bool attracting = false;
 
 // --------------------------------------------------------------------
-template< typename Key, typename Value, typename HashFunc >
-class HashMap
-{
-public:
-    HashMap( const unsigned int numBuckets, const HashFunc& hashFunc )
-        : mBuckets( numBuckets )
-        , mHashFunc( hashFunc )
-    { }
-
-    // returns the value corresponding to key,
-    // adding a new value if necessary
-    Value& Find( const Key& key )
-    {
-        // try to find an existing value
-        unsigned int idx = mHashFunc( key ) % mBuckets.size();
-        for( size_t i = 0; i < mBuckets[ idx ].size(); ++i )
-        {
-            KeyValue& kv = mBuckets[ idx ][ i ];
-            if( key == kv.first )
-            {
-                return kv.second;
-            }
-        }
-
-        // bucket was empty, add new value
-        mBuckets[ idx ].push_back( KeyValue( key, Value() ) );
-        return mBuckets[ idx ].back().second;
-    }
-
-    // returns the value corresponding to key if found,
-    // else a default-constructed value
-    const Value& Find( const Key& key ) const
-    {
-        // try to find an existing value
-        unsigned int idx = mHashFunc( key ) % mBuckets.size();
-        for( size_t i = 0; i < mBuckets[ idx ].size(); ++i )
-        {
-            const KeyValue& kv = mBuckets[ idx ][ i ];
-            if( key == kv.first )
-            {
-                return kv.second;
-            }
-        }
-
-        return mNotFound;
-    }
-
-    void Clear()
-    {
-        for( size_t i = 0; i < mBuckets.size(); ++i )
-        {
-            mBuckets[ i ].clear();
-        }
-    }
-
-private:
-    typedef std::pair< Key, Value > KeyValue;
-    typedef std::vector< KeyValue > Bucket;
-    typedef std::vector< Bucket > Buckets;
-
-    Value mNotFound;
-    Buckets mBuckets;
-    HashFunc mHashFunc;
-};
-
-// --------------------------------------------------------------------
 template< typename T >
 class SpatialIndex
 {
@@ -185,10 +120,10 @@ public:
 
     SpatialIndex
         (
-        const unsigned int numBuckets,  // 2^numBuckets hash buckets
+        const unsigned int numBuckets,  // number of hash buckets
         const float cellSize            // grid cell size
         )
-        : mHashMap( numBuckets, TeschnerHash() )
+        : mHashMap( numBuckets )
         , mInvCellSize( 1.0f / cellSize )
     {
         // initialize neighbor offsets
@@ -201,7 +136,7 @@ public:
     void Insert( const glm::vec3& pos, T* thing )
     {
         const glm::ivec3 ipos = Discretize( pos, mInvCellSize );
-        mHashMap.Find( ipos ).push_back( thing );
+        mHashMap[ ipos ].push_back( thing );
     }
 
     void Neighbors( const glm::vec3& pos, NeighborList& ret ) const
@@ -211,29 +146,32 @@ public:
         ret.clear();
         for( size_t i = 0; i < mOffsets.size(); ++i )
         {
-            const NeighborList& bucket = mHashMap.Find( mOffsets[i] + ipos );
-            ret.insert( ret.end(), bucket.begin(), bucket.end() );
+            HashMap::const_iterator it = mHashMap.find( mOffsets[i] + ipos );
+            if( it != mHashMap.end() )
+            {
+                ret.insert( ret.end(), it->second.begin(), it->second.end() );
+            }
         }
     }
 
     void Clear()
     {
-        mHashMap.Clear();
+        mHashMap.clear();
     }
 
 private:
     // "Optimized Spatial Hashing for Collision Detection of Deformable Objects"
     // Teschner, Heidelberger, et al.
     // returns a hash between 0 and 2^32-1
-    struct TeschnerHash
+    struct TeschnerHash : std::unary_function< glm::ivec3, std::size_t >
     {
-        inline unsigned int operator()( const ivec3& pos ) const
+        std::size_t operator()( glm::ivec3 const& pos ) const
         {
             const unsigned int p1 = 73856093;
             const unsigned int p2 = 19349663;
             const unsigned int p3 = 83492791;
-            return ( ( pos.x * p1 ) ^ ( pos.y * p2 ) ^ ( pos.z * p3 ) );
-        }
+            return size_t( ( pos.x * p1 ) ^ ( pos.y * p2 ) ^ ( pos.z * p3 ) );
+        };
     };
 
     // returns the indexes of the cell pos is in, assuming a cellSize grid
@@ -243,7 +181,8 @@ private:
         return ivec3( glm::floor( pos * invCellSize ) );
     }
 
-    HashMap< glm::ivec3, NeighborList, TeschnerHash > mHashMap;
+    typedef boost::unordered_map< glm::ivec3, NeighborList, TeschnerHash > HashMap;
+    HashMap mHashMap;
 
     std::vector< glm::ivec3 > mOffsets;
 
@@ -555,7 +494,7 @@ void mouse(int button, int state, int x, int y)
 // --------------------------------------------------------------------
 int main( int argc, char** argv )
 {
-#if 0
+#if 1
     ofstream file( "benchmark.txt" );
     typedef iostreams::tee_device< std::ostream, std::ofstream > Tee;
     typedef iostreams::stream< Tee > TeeStream;
