@@ -204,17 +204,16 @@ public:
         mHashMap.Find( ipos ).push_back( thing );
     }
 
-    NeighborList Neighbors( const glm::vec3& pos ) const
+    void Neighbors( const glm::vec3& pos, NeighborList& ret ) const
     {
         const ivec3 ipos = Discretize( pos, mInvCellSize );
 
-        NeighborList ret;
+        ret.clear();
         for( size_t i = 0; i < mOffsets.size(); ++i )
         {
             const NeighborList& bucket = mHashMap.Find( mOffsets[i] + ipos );
             ret.insert( ret.end(), bucket.begin(), bucket.end() );
         }
-        return ret;
     }
 
     void Clear()
@@ -332,7 +331,9 @@ void step()
         float d = 0;
         float dn = 0;
 
-        IndexType::NeighborList neigh = index.Neighbors( vec3( particles[i].pos, 0.0f ) );
+        IndexType::NeighborList neigh;
+        neigh.reserve( 64 );
+        index.Neighbors( vec3( particles[i].pos, 0.0f ), neigh );
         for( int j = 0; j < (int)neigh.size(); ++j )
         {
             if( neigh[j] == &particles[i] )
