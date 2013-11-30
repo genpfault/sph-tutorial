@@ -121,16 +121,20 @@ public:
     SpatialIndex
         (
         const unsigned int numBuckets,  // number of hash buckets
-        const float cellSize            // grid cell size
+        const float cellSize,           // grid cell size
+        const bool twoDeeNeighborhood   // true == 3x3 neighborhood, false == 3x3x3
         )
         : mHashMap( numBuckets )
         , mInvCellSize( 1.0f / cellSize )
     {
         // initialize neighbor offsets
-        for( int k = -1; k <= 1; k++ )
+        for( int i = -1; i <= 1; i++ )
             for( int j = -1; j <= 1; j++ )
-                for( int i = -1; i <= 1; i++ )
-                    mOffsets.push_back( ivec3( i, j, k ) );
+                if( twoDeeNeighborhood )
+                    mOffsets.push_back( ivec3( i, j, 0 ) );
+                else
+                    for( int k = -1; k <= 1; k++ )
+                        mOffsets.push_back( ivec3( i, j, k ) );
     }
 
     void Insert( const glm::vec3& pos, T* thing )
@@ -190,7 +194,7 @@ private:
 };
 
 typedef SpatialIndex< Particle > IndexType;
-IndexType index( 4093, r );
+IndexType index( 4093, r, true );
 
 // --------------------------------------------------------------------
 void step()
@@ -494,7 +498,7 @@ void mouse(int button, int state, int x, int y)
 // --------------------------------------------------------------------
 int main( int argc, char** argv )
 {
-#if 1
+#if 0
     ofstream file( "benchmark.txt" );
     typedef iostreams::tee_device< std::ostream, std::ofstream > Tee;
     typedef iostreams::stream< Tee > TeeStream;
