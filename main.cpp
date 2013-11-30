@@ -110,6 +110,73 @@ void init( const unsigned int N )
 vec2 attractor(999,999);
 bool attracting = false;
 
+// --------------------------------------------------------------------
+template< typename Key, typename Value, typename HashFunc >
+class HashMap
+{
+public:
+    HashMap( const unsigned int numBuckets, const HashFunc& hashFunc )
+        : mBuckets( numBuckets )
+        , mHashFunc( hashFunc )
+    { }
+
+    // returns the value corresponding to key,
+    // adding a new value if necessary
+    Value& Find( const Key& key )
+    {
+        // try to find an existing value
+        unsigned int idx = mHashFunc( key ) % mBuckets.size();
+        for( size_t i = 0; i < mBuckets[ idx ].size(); ++i )
+        {
+            KeyValue& kv = mBuckets[ idx ][ i ];
+            if( key == kv.first )
+            {
+                return kv.second;
+            }
+        }
+
+        // bucket was empty, add new value
+        mBuckets[ idx ].push_back( KeyValue( key, Value() ) );
+        return mBuckets[ idx ].back().second;
+    }
+
+    // returns the value corresponding to key if found,
+    // else a default-constructed value
+    const Value& Find( const Key& key ) const
+    {
+        // try to find an existing value
+        unsigned int idx = mHashFunc( key ) % mBuckets.size();
+        for( size_t i = 0; i < mBuckets[ idx ].size(); ++i )
+        {
+            const KeyValue& kv = mBuckets[ idx ][ i ];
+            if( key == kv.first )
+            {
+                return kv.second;
+            }
+        }
+
+        return mNotFound;
+    }
+
+    void Clear()
+    {
+        for( size_t i = 0; i < mBuckets.size(); ++i )
+        {
+            mBuckets[ i ].clear();
+        }
+    }
+
+private:
+    typedef std::pair< Key, Value > KeyValue;
+    typedef std::vector< KeyValue > Bucket;
+    typedef std::vector< Bucket > Buckets;
+
+    Value mNotFound;
+    Buckets mBuckets;
+    HashFunc mHashFunc;
+};
+
+// --------------------------------------------------------------------
 template< typename T >
 class SpatialIndex
 {
@@ -121,8 +188,7 @@ public:
         const unsigned int numBuckets,  // 2^numBuckets hash buckets
         const float cellSize            // grid cell size
         )
-        : mNumBuckets( numBuckets )
-        , mBuckets( 1 << numBuckets )
+        : mHashMap( numBuckets, TeschnerHash() )
         , mInvCellSize( 1.0f / cellSize )
     {
         // initialize neighbor offsets
@@ -132,11 +198,10 @@ public:
                     mOffsets.push_back( ivec3( i, j, k ) );
     }
 
-    void Insert( const glm::vec3& pos, T& thing )
+    void Insert( const glm::vec3& pos, T* thing )
     {
         const glm::ivec3 ipos = Discretize( pos, mInvCellSize );
-        unsigned int idx = TeschnerHash( ipos, mNumBuckets );
-        mBuckets[ idx ].push_back( &thing );
+        mHashMap.Find( ipos ).push_back( thing );
     }
 
     NeighborList Neighbors( const glm::vec3& pos ) const
@@ -146,8 +211,7 @@ public:
         NeighborList ret;
         for( size_t i = 0; i < mOffsets.size(); ++i )
         {
-            const unsigned int idx = TeschnerHash( mOffsets[i] + ipos, mNumBuckets );
-            const NeighborList& bucket = mBuckets[ idx ];
+            const NeighborList& bucket = mHashMap.Find( mOffsets[i] + ipos );
             ret.insert( ret.end(), bucket.begin(), bucket.end() );
         }
         return ret;
@@ -155,25 +219,23 @@ public:
 
     void Clear()
     {
-        for( HashBuckets::iterator i = mBuckets.begin(); i != mBuckets.end(); ++i )
-        {
-            i->clear();
-        }
+        mHashMap.Clear();
     }
 
 private:
     // "Optimized Spatial Hashing for Collision Detection of Deformable Objects"
     // Teschner, Heidelberger, et al.
-    // tableSize is the desired hash table size in powers-of-two ( 12 == 2^12 == 4096 )
-    // returns a hash between 0 and 2^tableSize-1
-    static inline unsigned int TeschnerHash( const ivec3& pos, const unsigned int tableSize )
+    // returns a hash between 0 and 2^32-1
+    struct TeschnerHash
     {
-        const unsigned int p1 = 73856093;
-        const unsigned int p2 = 19349663;
-        const unsigned int p3 = 83492791;
-        const unsigned int modval = ( ( 1 << tableSize ) - 1 );
-        return ( ( pos.x * p1 ) ^ ( pos.y * p2 ) ^ ( pos.z * p3 ) ) & modval;
-    }
+        inline unsigned int operator()( const ivec3& pos ) const
+        {
+            const unsigned int p1 = 73856093;
+            const unsigned int p2 = 19349663;
+            const unsigned int p3 = 83492791;
+            return ( ( pos.x * p1 ) ^ ( pos.y * p2 ) ^ ( pos.z * p3 ) );
+        }
+    };
 
     // returns the indexes of the cell pos is in, assuming a cellSize grid
     // invCellSize is the inverse of the desired cell size
@@ -182,10 +244,7 @@ private:
         return ivec3( glm::floor( pos * invCellSize ) );
     }
 
-    unsigned int mNumBuckets;
-
-    typedef std::vector< NeighborList > HashBuckets;
-    HashBuckets mBuckets;
+    HashMap< glm::ivec3, NeighborList, TeschnerHash > mHashMap;
 
     std::vector< glm::ivec3 > mOffsets;
 
@@ -193,7 +252,7 @@ private:
 };
 
 typedef SpatialIndex< Particle > IndexType;
-IndexType index( 12, r );
+IndexType index( 4093, r );
 
 // --------------------------------------------------------------------
 void step()
@@ -257,7 +316,7 @@ void step()
     index.Clear();
     for( int i = 0; i < (int)particles.size(); ++i )
     {
-        index.Insert( vec3( particles[i].pos, 0.0f ), particles[i] );
+        index.Insert( vec3( particles[i].pos, 0.0f ), &particles[i] );
     }
 
     // DENSITY
@@ -273,7 +332,6 @@ void step()
         float d = 0;
         float dn = 0;
 
-        // Now look at every other Particle
         IndexType::NeighborList neigh = index.Neighbors( vec3( particles[i].pos, 0.0f ) );
         for( int j = 0; j < (int)neigh.size(); ++j )
         {
