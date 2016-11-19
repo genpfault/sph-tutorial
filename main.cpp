@@ -12,18 +12,18 @@
 #include <vector>
 #include <cstdlib>
 #include <cmath>
-using namespace std;
+
 
 #include <boost/unordered_map.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/tee.hpp>
 #include <boost/chrono.hpp>
 #include <boost/chrono/chrono_io.hpp>
-using namespace boost;
+
 
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
-using namespace glm;
+
 
 // --------------------------------------------------------------------
 // Between [0,1]
@@ -51,12 +51,12 @@ struct Neighbor
 // The Particle structure holding all of the relevant information.
 struct Particle
 {
-    vec2 pos;
+    glm::vec2 pos;
     float r, g, b;
 
-    vec2 pos_old;
-    vec2 vel;
-    vec2 force;
+    glm::vec2 pos_old;
+    glm::vec2 vel;
+    glm::vec2 force;
     float mass;
     float rho;
     float rho_near;
@@ -64,11 +64,11 @@ struct Particle
     float press_near;
     float sigma;
     float beta;
-    vector< Neighbor > neighbors;
+    std::vector< Neighbor > neighbors;
 };
 
 // Our collection of particles
-vector< Particle > particles;
+std::vector< Particle > particles;
 
 // --------------------------------------------------------------------
 const float G = .02f * .25;           // Gravitational Constant for our simulation
@@ -97,9 +97,9 @@ void init( const unsigned int N )
             }
 
             Particle p;
-            p.pos = vec2(x, y);
-            p.pos_old = p.pos + 0.001f * vec2(rand01(), rand01());
-            p.force = vec2(0,0);
+            p.pos = glm::vec2(x, y);
+            p.pos_old = p.pos + 0.001f * glm::vec2(rand01(), rand01());
+            p.force = glm::vec2(0,0);
             p.sigma = 3.f;
             p.beta = 4.f;
             particles.push_back(p);
@@ -108,7 +108,7 @@ void init( const unsigned int N )
 }
 
 // Mouse attractor
-vec2 attractor(999,999);
+glm::vec2 attractor(999,999);
 bool attracting = false;
 
 // --------------------------------------------------------------------
@@ -131,10 +131,10 @@ public:
         for( int i = -1; i <= 1; i++ )
             for( int j = -1; j <= 1; j++ )
                 if( twoDeeNeighborhood )
-                    mOffsets.push_back( ivec3( i, j, 0 ) );
+                    mOffsets.push_back( glm::ivec3( i, j, 0 ) );
                 else
                     for( int k = -1; k <= 1; k++ )
-                        mOffsets.push_back( ivec3( i, j, k ) );
+                        mOffsets.push_back( glm::ivec3( i, j, k ) );
     }
 
     void Insert( const glm::vec3& pos, T* thing )
@@ -145,12 +145,12 @@ public:
 
     void Neighbors( const glm::vec3& pos, NeighborList& ret ) const
     {
-        const ivec3 ipos = Discretize( pos, mInvCellSize );
+        const glm::ivec3 ipos = Discretize( pos, mInvCellSize );
 
         ret.clear();
         for( size_t i = 0; i < mOffsets.size(); ++i )
         {
-            HashMap::const_iterator it = mHashMap.find( mOffsets[i] + ipos );
+            typename HashMap::const_iterator it = mHashMap.find( mOffsets[i] + ipos );
             if( it != mHashMap.end() )
             {
                 ret.insert( ret.end(), it->second.begin(), it->second.end() );
@@ -180,9 +180,9 @@ private:
 
     // returns the indexes of the cell pos is in, assuming a cellSize grid
     // invCellSize is the inverse of the desired cell size
-    static inline ivec3 Discretize( const vec3& pos, const float invCellSize )
+    static inline glm::ivec3 Discretize( const glm::vec3& pos, const float invCellSize )
     {
-        return ivec3( glm::floor( pos * invCellSize ) );
+        return glm::ivec3( glm::floor( pos * invCellSize ) );
     }
 
     typedef boost::unordered_map< glm::ivec3, NeighborList, TeschnerHash > HashMap;
@@ -194,7 +194,7 @@ private:
 };
 
 typedef SpatialIndex< Particle > IndexType;
-IndexType index( 4093, r, true );
+IndexType indexsp( 4093, r, true );
 
 // --------------------------------------------------------------------
 void step()
@@ -209,7 +209,7 @@ void step()
         particles[i].pos += particles[i].force;
 
         // Restart the forces with gravity only. We'll add the rest later.
-        particles[i].force = vec2( 0.0f, -::G );
+        particles[i].force = glm::vec2( 0.0f, -::G );
 
         // Calculate the velocity for later.
         particles[i].vel = particles[i].pos - particles[i].pos_old;
@@ -255,10 +255,10 @@ void step()
     }
 
     // update spatial index
-    index.Clear();
+    indexsp.Clear();
     for( int i = 0; i < (int)particles.size(); ++i )
     {
-        index.Insert( vec3( particles[i].pos, 0.0f ), &particles[i] );
+        indexsp.Insert( glm::vec3( particles[i].pos, 0.0f ), &particles[i] );
     }
 
     // DENSITY
@@ -276,7 +276,7 @@ void step()
 
         IndexType::NeighborList neigh;
         neigh.reserve( 64 );
-        index.Neighbors( vec3( particles[i].pos, 0.0f ), neigh );
+        indexsp.Neighbors( glm::vec3( particles[i].pos, 0.0f ), neigh );
         for( int j = 0; j < (int)neigh.size(); ++j )
         {
             if( neigh[j] == &particles[i] )
@@ -286,7 +286,7 @@ void step()
             }
 
             // The vector seperating the two particles
-            const vec2 rij = neigh[j]->pos - particles[i].pos;
+            const glm::vec2 rij = neigh[j]->pos - particles[i].pos;
 
             // Along with the squared distance between
             const float rij_len2 = glm::length2( rij );
@@ -334,13 +334,13 @@ void step()
     for( int i = 0; i < (int)particles.size(); ++i )
     {
         // For each of the neighbors
-        vec2 dX;
+        glm::vec2 dX;
         for( int ni = 0; ni < (int)particles[i].neighbors.size(); ++ni )
         {
             const Neighbor& n = particles[i].neighbors[ni];
 
             // The vector from Particle i to Particle j
-            const vec2 rij = (*n.j).pos - particles[i].pos;
+            const glm::vec2 rij = (*n.j).pos - particles[i].pos;
 
             // calculate the force from the pressures calculated above
             const float dm
@@ -348,7 +348,7 @@ void step()
 				+ n.q2 * ( particles[i].press_near + (*n.j).press_near );
 
             // Get the direction of the force
-            const vec2 D = glm::normalize( rij ) * dm;
+            const glm::vec2 D = glm::normalize( rij ) * dm;
             dX += D;
         }
 
@@ -376,18 +376,18 @@ void step()
         {
             const Neighbor& n = particles[i].neighbors[ni];
 
-            const vec2 rij = (*n.j).pos - particles[i].pos;
+            const glm::vec2 rij = (*n.j).pos - particles[i].pos;
             const float l = glm::length( rij );
             const float q = l / r;
 
-            const vec2 rijn = ( rij / l );
+            const glm::vec2 rijn = ( rij / l );
             // Get the projection of the velocities onto the vector between them.
             const float u = glm::dot( particles[i].vel - (*n.j).vel, rijn );
             if( u > 0 )
             {
                 // Calculate the viscosity impulse between the two particles
                 // based on the quadratic function of projected length.
-                const vec2 I
+                const glm::vec2 I
                     = ( 1 - q )
                     * ( (*n.j).sigma * u + (*n.j).beta * u * u )
                     * rijn;
@@ -454,12 +454,12 @@ void keyboard(unsigned char c, int x, int y)
             for( float x = -radius; x <= radius; x += r * .5f )
             {
                 Particle p;
-                p.pos = p.pos_old = vec2(x , y) + vec2(rand01(), rand01());
-                p.force = vec2(0,0);
+                p.pos = p.pos_old = glm::vec2(x , y) + glm::vec2(rand01(), rand01());
+                p.force = glm::vec2(0,0);
                 p.sigma = 3.f;
                 p.beta = 4.f;
 
-                if( glm::length2( p.pos - vec2( 0, SIM_W * 2 ) ) < radius * radius )
+                if( glm::length2( p.pos - glm::vec2( 0, SIM_W * 2 ) ) < radius * radius )
                 {
                     particles.push_back(p);
                 }
@@ -477,7 +477,7 @@ void motion(int x, int y)
     int window_h = glutGet( GLUT_WINDOW_HEIGHT );
     float relx = (float)(x - window_w/2) / window_w;
     float rely = -(float)(y - window_h) / window_h;
-    vec2 mouse = vec2(relx*SIM_W*2, rely*SIM_W*2);
+    glm::vec2 mouse = glm::vec2(relx*SIM_W*2, rely*SIM_W*2);
     attractor = mouse;
 }
 
@@ -491,7 +491,7 @@ void mouse(int button, int state, int x, int y)
     else
     {
         attracting = false;
-        attractor = vec2(SIM_W * 99, SIM_W * 99);
+        attractor = glm::vec2(SIM_W * 99, SIM_W * 99);
     }
 }
 
