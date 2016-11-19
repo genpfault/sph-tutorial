@@ -12,13 +12,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cmath>
-
-
-#include <boost/unordered_map.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <boost/iostreams/tee.hpp>
-#include <boost/chrono.hpp>
-#include <boost/chrono/chrono_io.hpp>
+#include <unordered_map>
 
 
 #include <glm/glm.hpp>
@@ -185,7 +179,7 @@ private:
         return glm::ivec3( glm::floor( pos * invCellSize ) );
     }
 
-    typedef boost::unordered_map< glm::ivec3, NeighborList, TeschnerHash > HashMap;
+    typedef std::unordered_map< glm::ivec3, NeighborList, TeschnerHash > HashMap;
     HashMap mHashMap;
 
     std::vector< glm::ivec3 > mOffsets;
