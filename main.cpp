@@ -14,10 +14,7 @@
 #include <cmath>
 #include <unordered_map>
 
-
 #include <glm/glm.hpp>
-#include <glm/gtx/norm.hpp>
-
 
 // --------------------------------------------------------------------
 // Between [0,1]
@@ -212,7 +209,7 @@ void step()
         // This will not damp all motion. It's not physically-based at all. Just
         // a little bit of a hack.
         const float max_vel = 2.0f;
-        const float vel_mag = glm::length2( particles[i].vel );
+        const float vel_mag = glm::dot( particles[i].vel, particles[i].vel );
         // If the velocity is greater than the max velocity, then cut it in half.
         if( vel_mag > max_vel * max_vel )
         {
@@ -232,7 +229,7 @@ void step()
 
         // Handle the mouse attractor.
         // It's a simple spring based attraction to where the mouse is.
-        const float attr_dist2 = glm::length2( particles[i].pos - attractor );
+        const float attr_dist2 = glm::dot( particles[i].pos - attractor, particles[i].pos - attractor );
         const float attr_l = SIM_W / 4;
         if( attracting )
         {
@@ -283,7 +280,7 @@ void step()
             const glm::vec2 rij = neigh[j]->pos - particles[i].pos;
 
             // Along with the squared distance between
-            const float rij_len2 = glm::length2( rij );
+            const float rij_len2 = glm::dot( rij, rij );
 
             // If they're within the radius of support ...
             if( rij_len2 < rsq )
@@ -328,7 +325,7 @@ void step()
     for( int i = 0; i < (int)particles.size(); ++i )
     {
         // For each of the neighbors
-        glm::vec2 dX;
+        glm::vec2 dX( 0 );
         for( int ni = 0; ni < (int)particles[i].neighbors.size(); ++ni )
         {
             const Neighbor& n = particles[i].neighbors[ni];
@@ -453,7 +450,8 @@ void keyboard(unsigned char c, int x, int y)
                 p.sigma = 3.f;
                 p.beta = 4.f;
 
-                if( glm::length2( p.pos - glm::vec2( 0, SIM_W * 2 ) ) < radius * radius )
+                const glm::vec2 temp( p.pos - glm::vec2( 0, SIM_W * 2 ) );
+                if( glm::dot( temp, temp ) < radius * radius )
                 {
                     particles.push_back(p);
                 }
