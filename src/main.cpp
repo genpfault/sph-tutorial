@@ -126,18 +126,15 @@ public:
 
     void Insert( const glm::vec3& pos, T* thing )
     {
-        const glm::ivec3 ipos = Discretize( pos, mInvCellSize );
-        mHashMap[ ipos ].push_back( thing );
+        mHashMap[ Discretize( pos, mInvCellSize ) ].push_back( thing );
     }
 
     void Neighbors( const glm::vec3& pos, NeighborList& ret ) const
     {
         const glm::ivec3 ipos = Discretize( pos, mInvCellSize );
-
-        ret.clear();
-        for( size_t i = 0; i < mOffsets.size(); ++i )
+        for( const auto& offset : mOffsets )
         {
-            typename HashMap::const_iterator it = mHashMap.find( mOffsets[i] + ipos );
+            typename HashMap::const_iterator it = mHashMap.find( offset + ipos );
             if( it != mHashMap.end() )
             {
                 ret.insert( ret.end(), it->second.begin(), it->second.end() );
@@ -177,7 +174,7 @@ private:
 
     std::vector< glm::ivec3 > mOffsets;
 
-    float mInvCellSize;
+    const float mInvCellSize;
 };
 
 typedef SpatialIndex< Particle > IndexType;
@@ -243,9 +240,9 @@ void step()
 
     // update spatial index
     indexsp.Clear();
-    for( int i = 0; i < (int)particles.size(); ++i )
+    for( auto& particle : particles )
     {
-        indexsp.Insert( glm::vec3( particles[i].pos, 0.0f ), &particles[i] );
+        indexsp.Insert( glm::vec3( particle.pos, 0.0f ), &particle );
     }
 
     // DENSITY
@@ -322,10 +319,8 @@ void step()
     {
         // For each of the neighbors
         glm::vec2 dX( 0 );
-        for( int ni = 0; ni < (int)particles[i].neighbors.size(); ++ni )
+        for( const Neighbor& n : particles[i].neighbors )
         {
-            const Neighbor& n = particles[i].neighbors[ni];
-
             // The vector from Particle i to Particle j
             const glm::vec2 rij = (*n.j).pos - particles[i].pos;
 
@@ -359,10 +354,8 @@ void step()
         particles[i].b = 0.3f + (0.1f * particles[i].rho );
 
         // For each of that particles neighbors
-        for( int ni = 0; ni < (int)particles[i].neighbors.size(); ++ni )
+        for( const Neighbor& n : particles[i].neighbors )
         {
-            const Neighbor& n = particles[i].neighbors[ni];
-
             const glm::vec2 rij = (*n.j).pos - particles[i].pos;
             const float l = glm::length( rij );
             const float q = l / r;
@@ -399,7 +392,8 @@ void display( GLFWwindow* window )
     // create a world with dimensions x:[-SIM_W,SIM_W] and y:[0,SIM_W*2]
     glMatrixMode( GL_PROJECTION );
     glLoadIdentity();
-    glOrtho( -SIM_W, SIM_W, 0, 2*SIM_W, -1, 1 );
+    const double ar = w / static_cast< double >( h );
+    glOrtho( ar * -SIM_W, ar * SIM_W, 0, 2*SIM_W, -1, 1 );
 
     glMatrixMode( GL_MODELVIEW );
     glLoadIdentity();
