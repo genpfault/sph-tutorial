@@ -1,20 +1,16 @@
 // Real-Time Physics Tutorials
 // Brandon Pelfrey
 // SPH Fluid Simulation
-//
-// g++ tutorial_3.cpp -lglut -O3 -fopenmp -o tutorial_3
-
-#include <GL/glut.h>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 #include <omp.h>
-
+#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <cstdlib>
 #include <cmath>
 #include <unordered_map>
-
-#include <glm/glm.hpp>
 
 // --------------------------------------------------------------------
 // Between [0,1]
@@ -391,21 +387,25 @@ void step()
 }
 
 // --------------------------------------------------------------------
-void display()
+void display( GLFWwindow* window )
 {
     glClearColor( 0, 0, 0, 1 );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
+    int w, h;
+    glfwGetWindowSize( window, &w, &h );
+    glViewport( 0, 0, w, h ); 
+
     // create a world with dimensions x:[-SIM_W,SIM_W] and y:[0,SIM_W*2]
-    glMatrixMode(GL_PROJECTION);
+    glMatrixMode( GL_PROJECTION );
     glLoadIdentity();
     glOrtho( -SIM_W, SIM_W, 0, 2*SIM_W, -1, 1 );
 
-    glMatrixMode(GL_MODELVIEW);
+    glMatrixMode( GL_MODELVIEW );
     glLoadIdentity();
 
     // Draw Fluid Particles
-    glPointSize(r*2);
+    glPointSize( r*2 );
     glVertexPointer( 2, GL_FLOAT, sizeof(Particle), &particles[0].pos );
     glColorPointer( 3, GL_FLOAT, sizeof(Particle), &particles[0].r );
     glEnableClientState( GL_VERTEX_ARRAY );
@@ -413,33 +413,26 @@ void display()
     glDrawArrays( GL_POINTS, 0, particles.size() );
     glDisableClientState( GL_VERTEX_ARRAY );
     glDisableClientState( GL_COLOR_ARRAY );
-
-    glutSwapBuffers();
 }
 
 // --------------------------------------------------------------------
-void idle()
+unsigned int stepsPerFrame = 1;
+void keyboard( GLFWwindow* window, int key, int scancode, int action, int mods )
 {
-    step();
-    glutPostRedisplay();
-}
-
-// --------------------------------------------------------------------
-void keyboard(unsigned char c, int x, int y)
-{
-    const float radius = SIM_W / 8;
-
-    switch(c)
+    if( action == GLFW_PRESS )
     {
-    case 27:
-    case 'q':
-    case 'Q':
-        // Quit
-        exit(0);
-        break;
+        return;
+    }
 
-    case ' ':
-        // If we press the space key, add some particles.
+    const float radius = SIM_W / 8;
+    switch( key )
+    {
+    case GLFW_KEY_ESCAPE:
+    case GLFW_KEY_Q:
+        glfwSetWindowShouldClose( window, 1 );
+        break;
+    case GLFW_KEY_SPACE:
+        // add some particles.
         for( float y = SIM_W * 2 - radius; y <= SIM_W * 2 + radius; y += r * .5f )
         {
             for( float x = -radius; x <= radius; x += r * .5f )
@@ -458,25 +451,33 @@ void keyboard(unsigned char c, int x, int y)
             }
         }
         break;
+    case GLFW_KEY_MINUS:
+    case GLFW_KEY_KP_SUBTRACT:
+        if( stepsPerFrame > 1 ) stepsPerFrame--;
+        break;
+    case GLFW_KEY_EQUAL:
+    case GLFW_KEY_KP_ADD:
+        stepsPerFrame++;
+        break;
     }
 }
 
 // --------------------------------------------------------------------
-void motion(int x, int y)
+void motion( GLFWwindow* window, double xpos, double ypos )
 {
     // This simply updates the location of the mouse attractor.
-    int window_w = glutGet( GLUT_WINDOW_WIDTH );
-    int window_h = glutGet( GLUT_WINDOW_HEIGHT );
-    float relx = (float)(x - window_w/2) / window_w;
-    float rely = -(float)(y - window_h) / window_h;
+    int window_w, window_h;
+    glfwGetWindowSize( window, &window_w, &window_h ); 
+    float relx = (float)(xpos - window_w/2) / window_w;
+    float rely = -(float)(ypos - window_h) / window_h;
     glm::vec2 mouse = glm::vec2(relx*SIM_W*2, rely*SIM_W*2);
     attractor = mouse;
 }
 
 // --------------------------------------------------------------------
-void mouse(int button, int state, int x, int y)
+void mouse( GLFWwindow* window, int button, int action, int mods )
 {
-    if(state == GLUT_DOWN)
+    if( action == GLFW_PRESS )
     {
         attracting = true;
     }
@@ -491,52 +492,59 @@ void mouse(int button, int state, int x, int y)
 int main( int argc, char** argv )
 {
 #if 0
-    ofstream file( "benchmark.txt" );
-    typedef iostreams::tee_device< std::ostream, std::ofstream > Tee;
-    typedef iostreams::stream< Tee > TeeStream;
-    Tee tee( std::cout, file );
-    TeeStream log( tee );
-
     const int steps = 3000;
-    log << "--------------------------------" << endl;
-    log << "Number of steps: " << steps << endl;
+    std::cout << "--------------------------------" << std::endl;
+    std::cout  << "Number of steps: " << steps << std::endl;
     for( unsigned int size = 10; size <= 13; ++size )
     {
         const unsigned int count = ( 1 << size );
-        log << "Number of particles: " << count << endl;
+        std::cout << "Number of particles: " << count << std::endl;
 
         init( count );
 
-        typedef chrono::high_resolution_clock clock_t;
-        clock_t::time_point beg, end;
-
-        beg = clock_t::now();
-        for( int i = 0; i < steps; ++i )
+        const auto beg = std::chrono::high_resolution_clock::now();
+        for( unsigned int i = 0; i < steps; ++i )
         {
             step();
         }
-        end = clock_t::now();
+        const auto end = std::chrono::high_resolution_clock::now();
 
-        log << "Elapsed time: " << chrono::duration_cast< chrono::milliseconds >( end - beg ) << endl;
-        log << "Microseconds per step: " << chrono::duration_cast< chrono::microseconds >( end - beg ).count() / (double)steps << endl;
-        log << endl;
+        const auto duration( end - beg );
+        std::cout << "Elapsed time: " << std::chrono::duration_cast< std::chrono::milliseconds >( duration ).count() << " milliseconds" << std::endl;
+        std::cout << "Microseconds per step: " << std::chrono::duration_cast< std::chrono::microseconds >( duration ).count() / (double)steps << std::endl;
+        std::cout << std::endl;
     }
 
     return 0;
-#endif
-
+#else
     init( 2048 );
 
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE);
-    glutInitWindowSize(512, 512);
-    glutCreateWindow("SPH");
+    glfwInit();
+    GLFWwindow* window = glfwCreateWindow( 512, 512, "SPH", NULL, NULL );
+    glfwMakeContextCurrent( window );
+    gladLoadGLLoader( (GLADloadproc)glfwGetProcAddress );
 
-    glutDisplayFunc(display);
-    glutKeyboardFunc(keyboard);
-    glutIdleFunc(idle);
-    glutMotionFunc(motion);
-    glutMouseFunc(mouse);
+    glfwSwapInterval( 1 );
 
-    glutMainLoop();
+    glfwSetKeyCallback( window, keyboard );
+    glfwSetCursorPosCallback( window, motion );
+    glfwSetMouseButtonCallback( window, mouse );
+
+    while( !glfwWindowShouldClose( window ) )
+    {
+        display( window );
+
+        glfwPollEvents();
+
+        for( size_t i = 0; i < stepsPerFrame; ++i )
+        {
+            step();
+        }
+
+        glfwSwapBuffers( window );
+    }
+
+    glfwTerminate();
+    return 0;
+#endif
 }
