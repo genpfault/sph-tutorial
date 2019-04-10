@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.7.2 )
+cmake_minimum_required( VERSION 3.10.0 )
 project( sph-benchmark )
 set( CMAKE_CXX_STANDARD 11 )
 
@@ -8,13 +8,8 @@ set( GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE )
 set( GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE )
 add_subdirectory( external/glfw )
 
-# make sure we have OpenMP support
-find_package( OpenMP REQUIRED )
-if( OPENMP_FOUND )
-    message( "OpenMP found" )
-    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}" )
-    set( CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}" )
-endif()
+# make sure we have OpenMP C++ support
+find_package( OpenMP REQUIRED CXX )
 
 # external includes
 include_directories( SYSTEM "external/glm" )
@@ -26,5 +21,7 @@ add_executable(
     sph-benchmark
     "src/main.cpp"
     "external/glad/src/glad.c" )
-target_link_libraries( sph-benchmark glfw )
- 
+target_link_libraries(
+    sph-benchmark
+    PRIVATE glfw
+    PRIVATE OpenMP::OpenMP_CXX )
