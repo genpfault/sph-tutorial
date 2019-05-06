@@ -405,7 +405,7 @@ void display( GLFWwindow* window )
     glColorPointer( 3, GL_FLOAT, sizeof(Particle), &particles[0].r );
     glEnableClientState( GL_VERTEX_ARRAY );
     glEnableClientState( GL_COLOR_ARRAY );
-    glDrawArrays( GL_POINTS, 0, particles.size() );
+    glDrawArrays( GL_POINTS, 0, static_cast< GLsizei >( particles.size() ) );
     glDisableClientState( GL_VERTEX_ARRAY );
     glDisableClientState( GL_COLOR_ARRAY );
 }
