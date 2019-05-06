@@ -2,9 +2,9 @@ cmake_minimum_required( VERSION 3.10.0 )
 project( sph-benchmark )
 
 # external glfw
-set( GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE )
-set( GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE )
-set( GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE )
+set( GLFW_BUILD_DOCS OFF CACHE INTERNAL "" )
+set( GLFW_BUILD_TESTS OFF CACHE INTERNAL "" )
+set( GLFW_BUILD_EXAMPLES OFF CACHE INTERNAL "" )
 add_subdirectory( external/glfw )
 
 # make sure we have OpenMP C++ support
