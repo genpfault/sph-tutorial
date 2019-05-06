@@ -1,6 +1,5 @@
 cmake_minimum_required( VERSION 3.10.0 )
 project( sph-benchmark )
-set( CMAKE_CXX_STANDARD 11 )
 
 # external glfw
 set( GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE )
@@ -21,6 +20,9 @@ add_executable(
     sph-benchmark
     "src/main.cpp"
     "external/glad/src/glad.c" )
+target_compile_features(
+    sph-benchmark
+    PUBLIC cxx_std_11 )
 target_link_libraries(
     sph-benchmark
     PRIVATE glfw
