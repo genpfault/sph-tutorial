@@ -9,7 +9,7 @@ Experimenting with performance evaluation and improvements to Brandon Pelfrey's 
 
 ##### Requirements
 
-* CMake >= 3.7.2
+* CMake >= 3.10.0
 * C++11 compiler
 * OpenGL support
 * OpenMP support
@@ -25,11 +25,10 @@ You can use the [`OMP_NUM_THREADS` environment variable](https://gcc.gnu.org/onl
 
 ##### Building
 
-Appropriate versions of GLFW and GLM are included as submodules so you should be able to clone and build without anything more than CMake and a compiler:
+Appropriate versions of GLFW and GLM are included as submodules so you can clone and build with just CMake and a compiler:
 
-    git clone https://github.com/genpfault/sph-tutorial.git
+    git clone --recurse-submodules https://github.com/genpfault/sph-tutorial.git
     cd sph-tutorial
-    git submodule update --init --recursive
     mkdir build
     cd build
     cmake ../ -DCMAKE_BUILD_TYPE=RelWithDebInfo
