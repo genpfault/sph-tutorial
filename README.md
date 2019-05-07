@@ -30,21 +30,21 @@ GLFW has some platform-specific build dependencies:
 
 * Linux
 
-        # Debian & derivatives:
-        sudo apt install \
-        libx11-dev \
-        libxrandr-dev \
-        libxinerama-dev \
-        libxcursor-dev \
-        libxi-dev \
+      # Debian & derivatives:
+      sudo apt install \
+      libx11-dev \
+      libxrandr-dev \
+      libxinerama-dev \
+      libxcursor-dev \
+      libxi-dev \
 
 * Windows
 
-        TBD
+      TBD
 
 * macOS
 
-        TBD
+      TBD
 
 ##### Building
 
